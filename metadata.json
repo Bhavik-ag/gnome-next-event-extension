@@ -1,5 +1,5 @@
 {
-  "uuid": "next-event@yourusername.local",
+  "uuid": "next-event@bhavik.dev",
   "name": "Next Event",
   "description": "Shows the next upcoming calendar event for today in the GNOME top bar. Reads from GNOME Calendar / Evolution Data Server.",
   "shell-version": ["45", "46", "47", "49"],

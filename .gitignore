@@ -1,0 +1,6 @@
+dist/
+*.shell-extension.zip
+*.log
+*.swp
+*~
+.DS_Store
