@@ -1,63 +1,49 @@
 # Next Event (GNOME Shell Extension)
 
-Shows today’s next upcoming calendar event in the GNOME top bar.  
-Clicking it opens a dropdown of upcoming events for today, and clicking any event opens GNOME Calendar.
+Shows today’s next calendar event in the GNOME top bar. Click the widget to see all upcoming events for today, then click any event to open GNOME Calendar.
 
-## Install (end user)
+## Quick install (Ubuntu, end user)
 
-### Option 1: Install from zip (recommended)
+1. Download `next-event@bhavik.dev.shell-extension.zip` from this repo’s **Releases** page.
+2. Open terminal in your Downloads folder and run:
+   ```bash
+   gnome-extensions install --force next-event@bhavik.dev.shell-extension.zip
+   gnome-extensions enable next-event@bhavik.dev
+   ```
+3. (Optional) Open **Extension Manager** and configure preferences.
+
+If the UI does not refresh immediately on Wayland, log out and back in once.
+
+## Customize (Extension Manager / Preferences)
+
+Open preferences:
 
 ```bash
-gnome-extensions install --force next-event@bhavik.dev.shell-extension.zip
-gnome-extensions enable next-event@bhavik.dev
+gnome-extensions prefs next-event@bhavik.dev
 ```
 
-### Option 2: Install from source files
-
-```bash
-EXT_DIR="$HOME/.local/share/gnome-shell/extensions/next-event@bhavik.dev"
-mkdir -p "$EXT_DIR"
-mkdir -p "$EXT_DIR/schemas"
-cp extension.js metadata.json prefs.js "$EXT_DIR"/
-cp schemas/*.xml "$EXT_DIR/schemas"/
-glib-compile-schemas "$EXT_DIR/schemas"
-gnome-extensions enable next-event@bhavik.dev
-```
-
-## Customize
-
-Open preferences in **Extension Manager** (or run `gnome-extensions prefs next-event@bhavik.dev`) and change:
-
-- Panel position: left / center / right
+Available settings:
+- Panel position (left / center / right)
 - Font size
 - Max title length
-- Refresh interval
-- Show/hide `Now` indicator for ongoing events
+- Refresh interval (seconds)
+- Show/hide `Now` indicator
 
-Most changes apply immediately.
-
-If you are developing from source and changed code:
+## Uninstall
 
 ```bash
-EXT_DIR="$HOME/.local/share/gnome-shell/extensions/next-event@bhavik.dev"
-mkdir -p "$EXT_DIR/schemas"
-cp extension.js metadata.json prefs.js "$EXT_DIR"/
-cp schemas/*.xml "$EXT_DIR/schemas"/
-glib-compile-schemas "$EXT_DIR/schemas"
 gnome-extensions disable next-event@bhavik.dev
-gnome-extensions enable next-event@bhavik.dev
+rm -rf ~/.local/share/gnome-shell/extensions/next-event@bhavik.dev
 ```
 
-On Wayland, if it still looks stale, log out and back in once.
-
-## Package
+## Build package from source
 
 ```bash
 ./package.sh
 ```
 
-The zip is created in `dist/`.
+Creates: `dist/next-event@bhavik.dev.shell-extension.zip`
 
-## More docs
+## Maintainer docs
 
-Publishing instructions: `docs/README.md`
+Publishing + review checklist: `docs/README.md`
