@@ -17,8 +17,29 @@ jobs:
 
       - name: Build extension zip
         run: |
-          chmod +x package.sh
-          ./package.sh
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          from zipfile import ZIP_DEFLATED, ZipFile
+
+          root = Path('.')
+          metadata = json.loads((root / 'metadata.json').read_text(encoding='utf-8'))
+          uuid = metadata['uuid']
+          out_dir = root / 'dist'
+          out_dir.mkdir(parents=True, exist_ok=True)
+          out_file = out_dir / f'{uuid}.shell-extension.zip'
+
+          required = [root / 'metadata.json', root / 'extension.js', root / 'prefs.js']
+          schemas = sorted((root / 'schemas').glob('*.gschema.xml'))
+
+          with ZipFile(out_file, 'w', compression=ZIP_DEFLATED) as zf:
+              for path in required:
+                  zf.write(path, path.name)
+              for path in schemas:
+                  zf.write(path, f'schemas/{path.name}')
+
+          print(f'Created {out_file}')
+          PY
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
