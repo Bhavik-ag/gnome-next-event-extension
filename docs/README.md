@@ -25,13 +25,22 @@ Rules:
    - `name`
    - `description`
    - `shell-version`
-   - `version` (increment for each release)
 2. Confirm extension loads cleanly on target GNOME Shell version(s).
 3. Remove debug-only code/log noise.
 4. Build zip:
    ```bash
    ./package.sh
    ```
+5. Run static checks with Shexli:
+   ```bash
+   python3 -m venv venv
+   . venv/bin/activate
+   pip install -U shexli
+   shexli .
+   shexli dist/next-event@bhavik.dev.shell-extension.zip
+   ```
+
+`version` in `metadata.json` is deprecated for EGO submission and should be omitted.
 
 ## Submit to extensions.gnome.org
 
@@ -43,6 +52,6 @@ Rules:
 
 ## Updating an existing published extension
 
-1. Increase `version` in `metadata.json`.
+1. Update code and metadata as needed.
 2. Rebuild with `./package.sh`.
 3. Upload new zip as an update in EGO.

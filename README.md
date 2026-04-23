@@ -17,24 +17,33 @@ gnome-extensions enable next-event@bhavik.dev
 ```bash
 EXT_DIR="$HOME/.local/share/gnome-shell/extensions/next-event@bhavik.dev"
 mkdir -p "$EXT_DIR"
-cp extension.js metadata.json "$EXT_DIR"/
+mkdir -p "$EXT_DIR/schemas"
+cp extension.js metadata.json prefs.js "$EXT_DIR"/
+cp schemas/*.xml "$EXT_DIR/schemas"/
+glib-compile-schemas "$EXT_DIR/schemas"
 gnome-extensions enable next-event@bhavik.dev
 ```
 
 ## Customize
 
-Edit `extension.js`:
+Open preferences in **Extension Manager** (or run `gnome-extensions prefs next-event@bhavik.dev`) and change:
 
-- `TOPBAR_FONT_SIZE`: top bar text size
-- `REFRESH_INTERVAL_SECONDS`: refresh interval
-- `MAX_TITLE_LENGTH`: max event title length
-- `_populateMenu()`: dropdown item text and click action
+- Panel position: left / center / right
+- Font size
+- Max title length
+- Refresh interval
+- Show/hide `Now` indicator for ongoing events
 
-Apply changes:
+Most changes apply immediately.
+
+If you are developing from source and changed code:
 
 ```bash
 EXT_DIR="$HOME/.local/share/gnome-shell/extensions/next-event@bhavik.dev"
-cp extension.js metadata.json "$EXT_DIR"/
+mkdir -p "$EXT_DIR/schemas"
+cp extension.js metadata.json prefs.js "$EXT_DIR"/
+cp schemas/*.xml "$EXT_DIR/schemas"/
+glib-compile-schemas "$EXT_DIR/schemas"
 gnome-extensions disable next-event@bhavik.dev
 gnome-extensions enable next-event@bhavik.dev
 ```

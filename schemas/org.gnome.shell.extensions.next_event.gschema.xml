@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.next_event" path="/org/gnome/shell/extensions/next_event/">
+    <key name="panel-position" type="s">
+      <default>'center'</default>
+    </key>
+
+    <key name="font-size" type="i">
+      <default>15</default>
+      <range min="10" max="40"/>
+    </key>
+
+    <key name="max-title-length" type="i">
+      <default>35</default>
+      <range min="10" max="120"/>
+    </key>
+
+    <key name="refresh-interval-seconds" type="i">
+      <default>60</default>
+      <range min="10" max="900"/>
+    </key>
+
+    <key name="show-ongoing-indicator" type="b">
+      <default>true</default>
+    </key>
+  </schema>
+</schemalist>

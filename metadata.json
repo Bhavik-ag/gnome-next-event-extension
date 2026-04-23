@@ -2,7 +2,7 @@
   "uuid": "next-event@bhavik.dev",
   "name": "Next Event",
   "description": "Shows the next upcoming calendar event for today in the GNOME top bar. Reads from GNOME Calendar / Evolution Data Server.",
-  "shell-version": ["45", "46", "47", "49"],
-  "version": 1,
-  "url": ""
+  "shell-version": ["45", "46", "47", "48", "49"],
+  "settings-schema": "org.gnome.shell.extensions.next_event",
+  "url": "https://github.com/Bhavik-ag/gnome-next-event-extension"
 }
