@@ -291,7 +291,24 @@ export default class NextEventExtension extends Extension {
             if (title.length > maxTitleLength)
                 title = title.substring(0, maxTitleLength - 1) + '...';
 
-            const item = new PopupMenu.PopupMenuItem(`${timeText} · ${title}`);
+            const item = new PopupMenu.PopupBaseMenuItem();
+
+            if (ev.color) {
+                const colorDot = new St.Widget({
+                    width: 12,
+                    height: 12,
+                    style: `background-color: ${ev.color}; border-radius: 6px; margin-right: 8px;`,
+                    y_align: Clutter.ActorAlign.CENTER,
+                });
+                item.add_child(colorDot);
+            }
+
+            const label = new St.Label({
+                text: `${timeText} · ${title}`,
+                y_align: Clutter.ActorAlign.CENTER,
+            });
+            item.add_child(label);
+
             item.connect('activate', () => {
                 Util.spawn(['sh', '-c', 'gtk-launch org.gnome.Calendar.desktop || flatpak run org.gnome.Calendar || gnome-calendar']);
             });
