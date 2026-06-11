@@ -7,6 +7,7 @@ import St from 'gi://St';
 import GLib from 'gi://GLib';
 import Clutter from 'gi://Clutter';
 import Gio from 'gi://Gio';
+import EDataServer from 'gi://EDataServer';
 
 import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
@@ -363,6 +364,25 @@ export default class NextEventExtension extends Extension {
         if (this._calendarColors[sourceUid]) return this._calendarColors[sourceUid];
 
         try {
+            if (!this._sourceRegistry) {
+                this._sourceRegistry = EDataServer.SourceRegistry.new_sync(null);
+            }
+            if (this._sourceRegistry) {
+                const source = this._sourceRegistry.ref_source(sourceUid);
+                if (source && source.has_extension(EDataServer.SOURCE_EXTENSION_CALENDAR)) {
+                    const calendar = source.get_extension(EDataServer.SOURCE_EXTENSION_CALENDAR);
+                    const color = calendar.get_color();
+                    if (color) {
+                        this._calendarColors[sourceUid] = color;
+                        return color;
+                    }
+                }
+            }
+        } catch (e) {
+            console.warn('Failed to load calendar color from EDataServer:', e);
+        }
+
+        try {
             const path = GLib.build_filenamev([GLib.get_user_config_dir(), 'evolution', 'sources', `${sourceUid}.source`]);
             const file = Gio.File.new_for_path(path);
             const [success, contents] = file.load_contents(null);
@@ -377,12 +397,18 @@ export default class NextEventExtension extends Extension {
         } catch (e) {}
 
         const palette = ['#3584e4', '#26a269', '#c01c28', '#e66100', '#f6d32d', '#9141ac', '#986a44'];
-        let hash = 0;
-        for (let i = 0; i < sourceUid.length; i++) {
-            hash = (hash << 5) - hash + sourceUid.charCodeAt(i);
-            hash |= 0;
+        let colorIndex = 0;
+        if (/^[0-9a-f]{40}$/i.test(sourceUid)) {
+            colorIndex = parseInt(sourceUid.substring(0, 8), 16) % palette.length;
+        } else {
+            let hash = 0;
+            for (let i = 0; i < sourceUid.length; i++) {
+                hash = (hash << 5) - hash + sourceUid.charCodeAt(i);
+                hash |= 0;
+            }
+            colorIndex = Math.abs(hash) % palette.length;
         }
-        this._calendarColors[sourceUid] = palette[Math.abs(hash) % palette.length];
+        this._calendarColors[sourceUid] = palette[colorIndex];
         return this._calendarColors[sourceUid];
     }
 
