@@ -302,9 +302,7 @@ export default class NextEventExtension extends Extension {
         for (const ev of this._allEvents) {
             const now = new Date();
             const isNow = ev.date <= now && ev.end >= now;
-            const timeText = isNow && this._shouldShowOngoingIndicator()
-                ? 'Now'
-                : this._formatTime(ev.date);
+            
             const maxTitleLength = this._getMaxTitleLength();
             let title = ev.summary || 'Untitled Event';
             if (title.length > maxTitleLength)
@@ -339,15 +337,28 @@ export default class NextEventExtension extends Extension {
                 item.add_child(colorDot);
             }
 
-            const label = new St.Label({
-                text: `${timeText} · ${title}`,
+            const labelBox = new St.BoxLayout({
+                vertical: true,
                 y_align: Clutter.ActorAlign.CENTER,
                 x_expand: true,
             });
+
+            const titleLabel = new St.Label({
+                text: title,
+            });
             if (isNow) {
-                label.set_style('font-weight: bold;');
+                titleLabel.set_style('font-weight: bold;');
             }
-            item.add_child(label);
+            labelBox.add_child(titleLabel);
+
+            let timeString = ev.allDay ? 'All Day' : `${this._formatTime(ev.date)} - ${this._formatTime(ev.end)}`;
+            const timeLabel = new St.Label({
+                text: timeString,
+            });
+            timeLabel.set_style('font-size: 0.85em; opacity: 0.8;');
+            labelBox.add_child(timeLabel);
+
+            item.add_child(labelBox);
 
             const textToSearch = `${ev.summary || ''} ${ev.location || ''} ${ev.description || ''} ${extraText}`;
             const links = [];
