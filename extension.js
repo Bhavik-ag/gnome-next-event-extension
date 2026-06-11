@@ -381,14 +381,21 @@ export default class NextEventExtension extends Extension {
             const teamsMatch = textToSearch.match(/https?:\/\/teams\.microsoft\.com\/l\/meetup-join\/[^\s<>"']+/);
             if (teamsMatch) links.push({ url: teamsMatch[0], icon: 'camera-web-symbolic', name: 'Teams' });
 
-            const indicoMatch = textToSearch.match(/https?:\/\/indico\.cern\.ch\/event\/[^\s<>"']+/);
-            if (indicoMatch) {
-                links.push({ url: indicoMatch[0], icon: 'x-office-calendar-symbolic', name: 'Indico' });
-            } else if (ev.id && ev.id.includes('@indico.cern.ch')) {
+            let indicoUrl = null;
+            if (ev.id && ev.id.includes('@indico.cern.ch')) {
                 const idMatch = ev.id.match(/indico-event-(\d+)@indico\.cern\.ch/);
                 if (idMatch) {
-                    links.push({ url: `https://indico.cern.ch/event/${idMatch[1]}/`, icon: 'x-office-calendar-symbolic', name: 'Indico' });
+                    indicoUrl = `https://indico.cern.ch/event/${idMatch[1]}/`;
                 }
+            }
+            if (!indicoUrl) {
+                const indicoMatch = textToSearch.match(/https?:\/\/indico\.cern\.ch\/event\/[^\s<>"']+/);
+                if (indicoMatch) {
+                    indicoUrl = indicoMatch[0];
+                }
+            }
+            if (indicoUrl) {
+                links.push({ url: indicoUrl, icon: 'x-office-calendar-symbolic', name: 'Indico' });
             }
 
             for (const link of links) {
