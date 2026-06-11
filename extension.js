@@ -306,8 +306,35 @@ export default class NextEventExtension extends Extension {
             const label = new St.Label({
                 text: `${timeText} · ${title}`,
                 y_align: Clutter.ActorAlign.CENTER,
+                x_expand: true,
             });
             item.add_child(label);
+
+            const textToSearch = `${ev.location || ''} ${ev.description || ''}`;
+            const links = [];
+
+            const zoomMatch = textToSearch.match(/https?:\/\/([a-zA-Z0-9-]+\.)?zoom\.(?:us|com)\/[^\s<>"']+/);
+            if (zoomMatch) links.push({ url: zoomMatch[0], icon: 'camera-web-symbolic', name: 'Zoom' });
+
+            const teamsMatch = textToSearch.match(/https?:\/\/teams\.microsoft\.com\/l\/meetup-join\/[^\s<>"']+/);
+            if (teamsMatch) links.push({ url: teamsMatch[0], icon: 'camera-web-symbolic', name: 'Teams' });
+
+            const indicoMatch = textToSearch.match(/https?:\/\/indico\.cern\.ch\/event\/[^\s<>"']+/);
+            if (indicoMatch) links.push({ url: indicoMatch[0], icon: 'x-office-calendar-symbolic', name: 'Indico' });
+
+            for (const link of links) {
+                const btn = new St.Button({
+                    style_class: 'button',
+                    style: 'padding: 4px; margin-left: 6px; border-radius: 4px;',
+                    child: new St.Icon({ icon_name: link.icon, icon_size: 16 }),
+                    y_align: Clutter.ActorAlign.CENTER,
+                });
+                btn.connect('clicked', () => {
+                    Util.spawn(['xdg-open', link.url]);
+                    this._indicator.menu.close();
+                });
+                item.add_child(btn);
+            }
 
             item.connect('activate', () => {
                 Util.spawn(['sh', '-c', 'gtk-launch org.gnome.Calendar.desktop || flatpak run org.gnome.Calendar || gnome-calendar']);
