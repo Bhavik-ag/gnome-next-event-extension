@@ -293,11 +293,23 @@ export default class NextEventExtension extends Extension {
 
             const item = new PopupMenu.PopupBaseMenuItem();
 
-            if (ev.color) {
+            let eventColor = ev.color;
+            if (!eventColor && ev.id) {
+                const parts = ev.id.split('\n');
+                const sourceUid = parts[0];
+                const palette = ['#3584e4', '#26a269', '#c01c28', '#e66100', '#f6d32d', '#9141ac', '#986a44'];
+                let hash = 0;
+                for (let i = 0; i < sourceUid.length; i++) {
+                    hash = sourceUid.charCodeAt(i) + ((hash << 5) - hash);
+                }
+                eventColor = palette[Math.abs(hash) % palette.length];
+            }
+
+            if (eventColor) {
                 const colorDot = new St.Widget({
                     width: 12,
                     height: 12,
-                    style: `background-color: ${ev.color}; border-radius: 6px; margin-right: 8px;`,
+                    style: `background-color: ${eventColor}; border-radius: 6px; margin-right: 8px;`,
                     y_align: Clutter.ActorAlign.CENTER,
                 });
                 item.add_child(colorDot);
@@ -310,7 +322,7 @@ export default class NextEventExtension extends Extension {
             });
             item.add_child(label);
 
-            const textToSearch = `${ev.location || ''} ${ev.description || ''}`;
+            const textToSearch = `${ev.summary || ''} ${ev.location || ''} ${ev.description || ''}`;
             const links = [];
 
             const zoomMatch = textToSearch.match(/https?:\/\/([a-zA-Z0-9-]+\.)?zoom\.(?:us|com)\/[^\s<>"']+/);
@@ -320,7 +332,14 @@ export default class NextEventExtension extends Extension {
             if (teamsMatch) links.push({ url: teamsMatch[0], icon: 'camera-web-symbolic', name: 'Teams' });
 
             const indicoMatch = textToSearch.match(/https?:\/\/indico\.cern\.ch\/event\/[^\s<>"']+/);
-            if (indicoMatch) links.push({ url: indicoMatch[0], icon: 'x-office-calendar-symbolic', name: 'Indico' });
+            if (indicoMatch) {
+                links.push({ url: indicoMatch[0], icon: 'x-office-calendar-symbolic', name: 'Indico' });
+            } else if (ev.id && ev.id.includes('@indico.cern.ch')) {
+                const idMatch = ev.id.match(/indico-event-(\d+)@indico\.cern\.ch/);
+                if (idMatch) {
+                    links.push({ url: `https://indico.cern.ch/event/${idMatch[1]}/`, icon: 'x-office-calendar-symbolic', name: 'Indico' });
+                }
+            }
 
             for (const link of links) {
                 const btn = new St.Button({
