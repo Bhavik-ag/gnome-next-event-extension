@@ -92,13 +92,28 @@ export default class NextEventExtension extends Extension {
         }
 
         this._indicator = new PanelMenu.Button(0.5, 'Next Event', false);
+        
+        const box = new St.BoxLayout({
+            vertical: false,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+
+        const icon = new St.Icon({
+            icon_name: 'x-office-calendar-symbolic',
+            style_class: 'system-status-icon',
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        
         this._label = new St.Label({
             text: currentText,
             y_align: Clutter.ActorAlign.CENTER,
         });
         this._updateLabelStyle();
 
-        this._indicator.add_child(this._label);
+        box.add_child(icon);
+        box.add_child(this._label);
+        this._indicator.add_child(box);
+
         Main.panel.addToStatusArea('next-event', this._indicator, 0, this._getPanelPosition());
         this._populateMenu();
     }
@@ -266,7 +281,7 @@ export default class NextEventExtension extends Extension {
             return count > 1 ? `${t} (${count})` : t;
         });
 
-        this._label.set_text(`Next events: ${formattedTimes.join(' · ')}`);
+        this._label.set_text(formattedTimes.join(' · '));
     }
 
     _populateMenu() {
