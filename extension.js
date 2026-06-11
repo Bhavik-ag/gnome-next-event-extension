@@ -351,7 +351,19 @@ export default class NextEventExtension extends Extension {
             }
             labelBox.add_child(titleLabel);
 
-            let timeString = ev.allDay ? 'All Day' : `${this._formatTime(ev.date)} - ${this._formatTime(ev.end)}`;
+            let effectiveEnd = new Date(ev.end.getTime() - 1);
+            const isSameDay = ev.date.getFullYear() === effectiveEnd.getFullYear() &&
+                              ev.date.getMonth() === effectiveEnd.getMonth() &&
+                              ev.date.getDate() === effectiveEnd.getDate();
+
+            let timeString;
+            if (isSameDay) {
+                timeString = ev.allDay ? 'All Day' : `${this._formatTime(ev.date)} - ${this._formatTime(ev.end)}`;
+            } else {
+                const endToFormat = ev.allDay ? effectiveEnd : ev.end;
+                timeString = `${this._formatDateTime(ev.date, !ev.allDay)} - ${this._formatDateTime(endToFormat, !ev.allDay)}`;
+            }
+
             const timeLabel = new St.Label({
                 text: timeString,
             });
@@ -505,5 +517,17 @@ export default class NextEventExtension extends Extension {
      */
     _formatTime(date) {
         return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    /**
+     * Format a Date object to a string with date and optionally time (e.g. "11 Jun, 14:00").
+     */
+    _formatDateTime(date, includeTime) {
+        const options = { month: 'short', day: 'numeric' };
+        if (includeTime) {
+            options.hour = '2-digit';
+            options.minute = '2-digit';
+        }
+        return date.toLocaleString(undefined, options);
     }
 }
