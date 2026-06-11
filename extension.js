@@ -251,13 +251,13 @@ export default class NextEventExtension extends Extension {
         const todayEnd   = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
 
         const events = this._eventSource.getEvents(todayStart, todayEnd);
-        const upcoming = (events || [])
-            .filter(ev => ev.date >= now || ev.end >= now)
-            .sort((a, b) => a.date - b.date);
+        const sortedEvents = (events || []).sort((a, b) => a.date - b.date);
+        const upcoming = sortedEvents.filter(ev => ev.date >= now || ev.end >= now);
+        this._allEvents = sortedEvents;
         this._upcomingEvents = upcoming;
         this._populateMenu();
 
-        if (!events || events.length === 0) {
+        if (this._allEvents.length === 0) {
             this._label.set_text('No events today');
             return;
         }
@@ -290,8 +290,8 @@ export default class NextEventExtension extends Extension {
 
         this._indicator.menu.removeAll();
 
-        if (!this._upcomingEvents || this._upcomingEvents.length === 0) {
-            const emptyItem = new PopupMenu.PopupMenuItem('No upcoming events today', {
+        if (!this._allEvents || this._allEvents.length === 0) {
+            const emptyItem = new PopupMenu.PopupMenuItem('No events today', {
                 reactive: false,
                 can_focus: false,
             });
@@ -299,7 +299,7 @@ export default class NextEventExtension extends Extension {
             return;
         }
 
-        for (const ev of this._upcomingEvents) {
+        for (const ev of this._allEvents) {
             const now = new Date();
             const isNow = ev.date <= now && ev.end >= now;
             const timeText = isNow && this._shouldShowOngoingIndicator()
@@ -311,6 +311,10 @@ export default class NextEventExtension extends Extension {
                 title = title.substring(0, maxTitleLength - 1) + '...';
 
             const item = new PopupMenu.PopupBaseMenuItem();
+            const isPast = ev.end < now;
+            if (isPast) {
+                item.opacity = 127;
+            }
 
             let eventColor = ev.color;
             let extraText = "";
@@ -340,6 +344,9 @@ export default class NextEventExtension extends Extension {
                 y_align: Clutter.ActorAlign.CENTER,
                 x_expand: true,
             });
+            if (isNow) {
+                label.set_style('font-weight: bold;');
+            }
             item.add_child(label);
 
             const textToSearch = `${ev.summary || ''} ${ev.location || ''} ${ev.description || ''} ${extraText}`;
