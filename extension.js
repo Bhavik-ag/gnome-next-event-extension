@@ -6,6 +6,7 @@
 import St from 'gi://St';
 import GLib from 'gi://GLib';
 import Clutter from 'gi://Clutter';
+import Gio from 'gi://Gio';
 
 import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
@@ -297,12 +298,7 @@ export default class NextEventExtension extends Extension {
             if (!eventColor && ev.id) {
                 const parts = ev.id.split('\n');
                 const sourceUid = parts[0];
-                const palette = ['#3584e4', '#26a269', '#c01c28', '#e66100', '#f6d32d', '#9141ac', '#986a44'];
-                let hash = 0;
-                for (let i = 0; i < sourceUid.length; i++) {
-                    hash = sourceUid.charCodeAt(i) + ((hash << 5) - hash);
-                }
-                eventColor = palette[Math.abs(hash) % palette.length];
+                eventColor = this._getCalendarColor(sourceUid);
             }
 
             if (eventColor) {
@@ -360,6 +356,34 @@ export default class NextEventExtension extends Extension {
             });
             this._indicator.menu.addMenuItem(item);
         }
+    }
+
+    _getCalendarColor(sourceUid) {
+        if (!this._calendarColors) this._calendarColors = {};
+        if (this._calendarColors[sourceUid]) return this._calendarColors[sourceUid];
+
+        try {
+            const path = GLib.build_filenamev([GLib.get_user_config_dir(), 'evolution', 'sources', `${sourceUid}.source`]);
+            const file = Gio.File.new_for_path(path);
+            const [success, contents] = file.load_contents(null);
+            if (success) {
+                const text = new TextDecoder('utf-8').decode(contents);
+                const match = text.match(/^Color=(.+)$/m);
+                if (match && match[1]) {
+                    this._calendarColors[sourceUid] = match[1].trim();
+                    return this._calendarColors[sourceUid];
+                }
+            }
+        } catch (e) {}
+
+        const palette = ['#3584e4', '#26a269', '#c01c28', '#e66100', '#f6d32d', '#9141ac', '#986a44'];
+        let hash = 0;
+        for (let i = 0; i < sourceUid.length; i++) {
+            hash = (hash << 5) - hash + sourceUid.charCodeAt(i);
+            hash |= 0;
+        }
+        this._calendarColors[sourceUid] = palette[Math.abs(hash) % palette.length];
+        return this._calendarColors[sourceUid];
     }
 
     /**
