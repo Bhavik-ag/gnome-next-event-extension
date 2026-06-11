@@ -248,18 +248,21 @@ export default class NextEventExtension extends Extension {
             return;
         }
 
-        const next = upcoming[0];
-        const timeStr = this._formatTime(next.date);
-        const maxTitleLength = this._getMaxTitleLength();
+        const timeStrings = upcoming.map(ev => {
+            const isNow = ev.date <= now && ev.end >= now;
+            return isNow && this._shouldShowOngoingIndicator() ? 'Now' : this._formatTime(ev.date);
+        });
 
-        let title = next.summary || 'Untitled Event';
-        if (title.length > maxTitleLength)
-            title = title.substring(0, maxTitleLength - 1) + '...';
+        const timeCounts = new Map();
+        for (const t of timeStrings) {
+            timeCounts.set(t, (timeCounts.get(t) || 0) + 1);
+        }
 
-        const isNow = next.date <= now && next.end >= now;
-        const prefix = isNow && this._shouldShowOngoingIndicator() ? 'Now' : timeStr;
+        const formattedTimes = Array.from(timeCounts.entries()).map(([t, count]) => {
+            return count > 1 ? `${t} (${count})` : t;
+        });
 
-        this._label.set_text(`${prefix} · ${title}`);
+        this._label.set_text(`Next events: ${formattedTimes.join(' · ')}`);
     }
 
     _populateMenu() {
@@ -290,7 +293,7 @@ export default class NextEventExtension extends Extension {
 
             const item = new PopupMenu.PopupMenuItem(`${timeText} · ${title}`);
             item.connect('activate', () => {
-                Util.spawn(['gnome-calendar']);
+                Util.spawn(['sh', '-c', 'gtk-launch org.gnome.Calendar.desktop || flatpak run org.gnome.Calendar || gnome-calendar']);
             });
             this._indicator.menu.addMenuItem(item);
         }
