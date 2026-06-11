@@ -8,6 +8,8 @@ import GLib from 'gi://GLib';
 import Clutter from 'gi://Clutter';
 import Gio from 'gi://Gio';
 import EDataServer from 'gi://EDataServer';
+import ECal from 'gi://ECal';
+import ICalGLib from 'gi://ICalGLib';
 
 import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
@@ -296,10 +298,16 @@ export default class NextEventExtension extends Extension {
             const item = new PopupMenu.PopupBaseMenuItem();
 
             let eventColor = ev.color;
-            if (!eventColor && ev.id) {
+            let extraText = "";
+            if (ev.id) {
                 const parts = ev.id.split('\n');
                 const sourceUid = parts[0];
-                eventColor = this._getCalendarColor(sourceUid);
+                if (!eventColor) {
+                    eventColor = this._getCalendarColor(sourceUid);
+                }
+                if (parts.length > 1 && parts[1]) {
+                    extraText = this._getEventText(sourceUid, parts[1]);
+                }
             }
 
             if (eventColor) {
@@ -319,7 +327,7 @@ export default class NextEventExtension extends Extension {
             });
             item.add_child(label);
 
-            const textToSearch = `${ev.summary || ''} ${ev.location || ''} ${ev.description || ''}`;
+            const textToSearch = `${ev.summary || ''} ${ev.location || ''} ${ev.description || ''} ${extraText}`;
             const links = [];
 
             const zoomMatch = textToSearch.match(/https?:\/\/([a-zA-Z0-9-]+\.)?zoom\.(?:us|com)\/[^\s<>"']+/);
@@ -356,6 +364,53 @@ export default class NextEventExtension extends Extension {
                 Util.spawn(['sh', '-c', 'gtk-launch org.gnome.Calendar.desktop || flatpak run org.gnome.Calendar || gnome-calendar']);
             });
             this._indicator.menu.addMenuItem(item);
+        }
+    }
+
+    _getEventText(sourceUid, eventUid) {
+        if (!this._sourceRegistry) {
+            try {
+                this._sourceRegistry = EDataServer.SourceRegistry.new_sync(null);
+            } catch (e) {
+                console.warn("ECAL SourceRegistry Error: " + e);
+                return "";
+            }
+        }
+        if (!this._ecalClients) this._ecalClients = {};
+        
+        try {
+            let client = this._ecalClients[sourceUid];
+            if (!client) {
+                const source = this._sourceRegistry.ref_source(sourceUid);
+                if (!source) {
+                    console.warn("ECAL Error: Source not found for " + sourceUid);
+                    return "";
+                }
+                client = ECal.Client.connect_sync(source, ECal.ClientSourceType.EVENTS, 1, null);
+                if (!client) {
+                    console.warn("ECAL Error: Failed to connect client for " + sourceUid);
+                    return "";
+                }
+                this._ecalClients[sourceUid] = client;
+            }
+            
+            const [success, comp] = client.get_object_sync(eventUid, null, null);
+            if (!success || !comp) {
+                console.warn("ECAL Error: Failed to get object " + eventUid);
+                return "";
+            }
+            
+            let text = "";
+            const descProp = comp.get_first_property(ICalGLib.PropertyKind.DESCRIPTION_PROPERTY);
+            if (descProp) text += " " + descProp.get_description();
+            
+            const locProp = comp.get_first_property(ICalGLib.PropertyKind.LOCATION_PROPERTY);
+            if (locProp) text += " " + locProp.get_location();
+            
+            return text;
+        } catch (e) {
+            console.warn("ECAL Error: " + e);
+            return "";
         }
     }
 
