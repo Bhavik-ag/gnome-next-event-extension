@@ -179,7 +179,7 @@ export default class NextEventExtension extends Extension {
             GLib.PRIORITY_DEFAULT,
             interval,
             () => {
-                this._requestAndRefresh(true);
+                this._requestAndRefresh(false);
                 return GLib.SOURCE_CONTINUE;
             }
         );
