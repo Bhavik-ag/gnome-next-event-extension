@@ -23,5 +23,9 @@
     <key name="display-mode" type="s">
       <default>'next-event'</default>
     </key>
+
+    <key name="show-mini-timeline" type="b">
+      <default>true</default>
+    </key>
   </schema>
 </schemalist>

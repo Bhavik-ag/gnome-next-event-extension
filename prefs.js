@@ -84,5 +84,12 @@ export default class NextEventPreferences extends ExtensionPreferences {
             settings.set_string('display-mode', DISPLAY_MODES[row.get_selected()]);
         });
         group.add(displayModeRow);
+
+        const miniTimelineRow = new Adw.SwitchRow({
+            title: _('Show mini timeline'),
+            subtitle: _('Display a visual timeline of events below the week view dates'),
+        });
+        settings.bind('show-mini-timeline', miniTimelineRow, 'active', Gio.SettingsBindFlags.DEFAULT);
+        group.add(miniTimelineRow);
     }
 }

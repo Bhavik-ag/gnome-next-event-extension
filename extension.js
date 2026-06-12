@@ -162,6 +162,12 @@ export default class NextEventExtension extends Extension {
                 this._refresh();
             })
         );
+
+        this._settingsSignals.push(
+            this._settings.connect('changed::show-mini-timeline', () => {
+                this._refresh();
+            })
+        );
     }
 
     _startTimer() {
@@ -439,79 +445,83 @@ export default class NextEventExtension extends Extension {
             dayBox.add_child(dayName);
             dayBox.add_child(dayNum);
 
-            const dayCol = new St.Widget({
-                x_expand: true,
-                style: `height: ${TIMELINE_HEIGHT}px; margin-top: 6px; border-radius: 2px; background-color: rgba(128, 128, 128, 0.05);`,
-                clip_to_allocation: true,
-            });
-            dayCol.set_layout_manager(new Clutter.FixedLayout());
+            const showMiniTimeline = this._settings?.get_boolean('show-mini-timeline') ?? true;
 
-            const dayStart = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate(), 0, 0, 0);
-            const dayEnd = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate(), 23, 59, 59);
-            
-            const dayEvents = weekEvents.filter(ev => ev.date <= dayEnd && ev.end >= dayStart);
-            dayEvents.sort((a, b) => {
-                const durA = a.allDay ? 24 * 3600000 : (a.end.getTime() - a.date.getTime());
-                const durB = b.allDay ? 24 * 3600000 : (b.end.getTime() - b.date.getTime());
-                return durB - durA;
-            });
+            if (showMiniTimeline) {
+                const dayCol = new St.Widget({
+                    x_expand: true,
+                    style: `height: ${TIMELINE_HEIGHT}px; margin-top: 6px; border-radius: 2px; background-color: rgba(128, 128, 128, 0.05);`,
+                    clip_to_allocation: true,
+                });
+                dayCol.set_layout_manager(new Clutter.FixedLayout());
 
-            for (const ev of dayEvents) {
-                const evStart = Math.max(ev.date.getTime(), dayStart.getTime());
-                const evEnd = Math.min(ev.end.getTime(), dayEnd.getTime());
+                const dayStart = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate(), 0, 0, 0);
+                const dayEnd = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate(), 23, 59, 59);
+                
+                const dayEvents = weekEvents.filter(ev => ev.date <= dayEnd && ev.end >= dayStart);
+                dayEvents.sort((a, b) => {
+                    const durA = a.allDay ? 24 * 3600000 : (a.end.getTime() - a.date.getTime());
+                    const durB = b.allDay ? 24 * 3600000 : (b.end.getTime() - b.date.getTime());
+                    return durB - durA;
+                });
 
-                const startHour = new Date(evStart).getHours() + new Date(evStart).getMinutes() / 60;
-                const endHour = new Date(evEnd).getHours() + new Date(evEnd).getMinutes() / 60;
+                for (const ev of dayEvents) {
+                    const evStart = Math.max(ev.date.getTime(), dayStart.getTime());
+                    const evEnd = Math.min(ev.end.getTime(), dayEnd.getTime());
 
-                const y = (startHour / 24) * TIMELINE_HEIGHT;
-                let h = ((endHour - startHour) / 24) * TIMELINE_HEIGHT;
-                if (h < 2) h = 2;
-                if (ev.allDay) {
-                    h = TIMELINE_HEIGHT;
+                    const startHour = new Date(evStart).getHours() + new Date(evStart).getMinutes() / 60;
+                    const endHour = new Date(evEnd).getHours() + new Date(evEnd).getMinutes() / 60;
+
+                    const y = (startHour / 24) * TIMELINE_HEIGHT;
+                    let h = ((endHour - startHour) / 24) * TIMELINE_HEIGHT;
+                    if (h < 2) h = 2;
+                    if (ev.allDay) {
+                        h = TIMELINE_HEIGHT;
+                    }
+
+                    let eventColor = ev.color;
+                    if (!eventColor && ev.id) {
+                        const parts = ev.id.split('\n');
+                        eventColor = this._getCalendarColor(parts[0]);
+                    }
+                    if (!eventColor) eventColor = '#3584e4';
+
+                    const isAllDayOrMulti = ev.allDay || (ev.end.getTime() - ev.date.getTime() >= 24 * 3600000);
+
+                    const block = new St.Widget({
+                        style: `background-color: ${eventColor}; border-radius: 2px;`,
+                    });
+                    block.opacity = isAllDayOrMulti ? 77 : 204;
+                    block.set_position(3, y);
+                    block.set_size(-1, h);
+                    block.add_constraint(new Clutter.BindConstraint({
+                        source: dayCol,
+                        coordinate: Clutter.BindCoordinate.WIDTH,
+                        offset: -6,
+                    }));
+                    dayCol.add_child(block);
                 }
 
-                let eventColor = ev.color;
-                if (!eventColor && ev.id) {
-                    const parts = ev.id.split('\n');
-                    eventColor = this._getCalendarColor(parts[0]);
+                const now = new Date();
+                if (isToday) {
+                    const nowHour = now.getHours() + now.getMinutes() / 60;
+                    const nowY = (nowHour / 24) * TIMELINE_HEIGHT;
+
+                    const redLine = new St.Widget({
+                        style: 'background-color: #ed333b; border-radius: 1px;',
+                    });
+                    redLine.set_position(0, nowY);
+                    redLine.set_size(-1, 2);
+                    redLine.add_constraint(new Clutter.BindConstraint({
+                        source: dayCol,
+                        coordinate: Clutter.BindCoordinate.WIDTH,
+                        offset: 0,
+                    }));
+                    dayCol.add_child(redLine);
                 }
-                if (!eventColor) eventColor = '#3584e4';
 
-                const isAllDayOrMulti = ev.allDay || (ev.end.getTime() - ev.date.getTime() >= 24 * 3600000);
-
-                const block = new St.Widget({
-                    style: `background-color: ${eventColor}; border-radius: 2px;`,
-                });
-                block.opacity = isAllDayOrMulti ? 77 : 204;
-                block.set_position(3, y);
-                block.set_size(-1, h);
-                block.add_constraint(new Clutter.BindConstraint({
-                    source: dayCol,
-                    coordinate: Clutter.BindCoordinate.WIDTH,
-                    offset: -6,
-                }));
-                dayCol.add_child(block);
+                dayBox.add_child(dayCol);
             }
-
-            const now = new Date();
-            if (isToday) {
-                const nowHour = now.getHours() + now.getMinutes() / 60;
-                const nowY = (nowHour / 24) * TIMELINE_HEIGHT;
-
-                const redLine = new St.Widget({
-                    style: 'background-color: #ed333b; border-radius: 1px;',
-                });
-                redLine.set_position(0, nowY);
-                redLine.set_size(-1, 2);
-                redLine.add_constraint(new Clutter.BindConstraint({
-                    source: dayCol,
-                    coordinate: Clutter.BindCoordinate.WIDTH,
-                    offset: 0,
-                }));
-                dayCol.add_child(redLine);
-            }
-
-            dayBox.add_child(dayCol);
 
             const bgStyle = isSelected ? 'background-color: rgba(128, 128, 128, 0.2);' : 'background-color: transparent;';
             const dayBtn = new St.Button({
