@@ -158,7 +158,7 @@ export default class NextEventExtension extends Extension {
         );
 
         this._settingsSignals.push(
-            this._settings.connect('changed::show-ongoing-indicator', () => {
+            this._settings.connect('changed::display-mode', () => {
                 this._refresh();
             })
         );
@@ -211,8 +211,8 @@ export default class NextEventExtension extends Extension {
         return Math.max(10, value);
     }
 
-    _shouldShowOngoingIndicator() {
-        return this._settings?.get_boolean('show-ongoing-indicator') ?? true;
+    _getDisplayMode() {
+        return this._settings?.get_string('display-mode') || 'upcoming-times';
     }
 
     _updateLabelStyle() {
@@ -292,31 +292,68 @@ export default class NextEventExtension extends Extension {
         this._upcomingEvents = upcoming;
         this._populateMenu();
 
+        const displayMode = this._getDisplayMode();
+
+        if (displayMode === 'icon-only') {
+            this._label.set_text('');
+            this._label.hide();
+            return;
+        } else {
+            this._label.show();
+        }
+
         if (sortedTodayEvents.length === 0) {
             this._label.set_text('No events today');
             return;
         }
 
-        if (upcoming.length === 0) {
-            this._label.set_text('Done for today');
-            return;
-        }
-
-        const timeStrings = upcoming.map(ev => {
+        const formatEvent = (ev, showNowIfOngoing) => {
             const isNow = ev.date <= now && ev.end >= now;
-            return isNow && this._shouldShowOngoingIndicator() ? 'Now' : this._formatTime(ev.date);
-        });
+            let timeStr = isNow && showNowIfOngoing ? 'Now' : this._formatTime(ev.date);
+            let titleStr = ev.summary || 'Untitled Event';
+            const maxTitleLength = this._getMaxTitleLength();
+            if (titleStr.length > maxTitleLength) {
+                titleStr = titleStr.substring(0, maxTitleLength - 1) + '...';
+            }
+            return `${timeStr} ${titleStr}`;
+        };
 
-        const timeCounts = new Map();
-        for (const t of timeStrings) {
-            timeCounts.set(t, (timeCounts.get(t) || 0) + 1);
+        if (displayMode === 'next-event') {
+            const nextEv = sortedTodayEvents.find(ev => ev.date > now);
+            if (nextEv) {
+                this._label.set_text(formatEvent(nextEv, false));
+            } else {
+                this._label.set_text('Done for today');
+            }
+        } else if (displayMode === 'now-next-event') {
+            const currentOrNextEv = sortedTodayEvents.find(ev => ev.date > now || (ev.date <= now && ev.end > now));
+            if (currentOrNextEv) {
+                this._label.set_text(formatEvent(currentOrNextEv, true));
+            } else {
+                this._label.set_text('Done for today');
+            }
+        } else {
+            if (upcoming.length === 0) {
+                this._label.set_text('Done for today');
+                return;
+            }
+
+            const timeStrings = upcoming.map(ev => {
+                const isNow = ev.date <= now && ev.end >= now;
+                return isNow ? 'Now' : this._formatTime(ev.date);
+            });
+
+            const timeCounts = new Map();
+            for (const t of timeStrings) {
+                timeCounts.set(t, (timeCounts.get(t) || 0) + 1);
+            }
+
+            const formattedTimes = Array.from(timeCounts.entries()).map(([t, count]) => {
+                return count > 1 ? `${t} (${count})` : t;
+            });
+
+            this._label.set_text(formattedTimes.join(' · '));
         }
-
-        const formattedTimes = Array.from(timeCounts.entries()).map(([t, count]) => {
-            return count > 1 ? `${t} (${count})` : t;
-        });
-
-        this._label.set_text(formattedTimes.join(' · '));
     }
 
     _populateMenu() {

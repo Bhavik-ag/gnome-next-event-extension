@@ -20,8 +20,8 @@
       <range min="10" max="900"/>
     </key>
 
-    <key name="show-ongoing-indicator" type="b">
-      <default>true</default>
+    <key name="display-mode" type="s">
+      <default>'next-event'</default>
     </key>
   </schema>
 </schemalist>

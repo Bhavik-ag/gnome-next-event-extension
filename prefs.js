@@ -5,6 +5,7 @@ import Gtk from 'gi://Gtk';
 import { ExtensionPreferences, gettext as _ } from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 
 const POSITIONS = ['left', 'center', 'right'];
+const DISPLAY_MODES = ['icon-only', 'next-event', 'now-next-event', 'upcoming-times'];
 
 export default class NextEventPreferences extends ExtensionPreferences {
     fillPreferencesWindow(window) {
@@ -71,11 +72,17 @@ export default class NextEventPreferences extends ExtensionPreferences {
         settings.bind('refresh-interval-seconds', refreshRow, 'value', Gio.SettingsBindFlags.DEFAULT);
         group.add(refreshRow);
 
-        const nowIndicatorRow = new Adw.SwitchRow({
-            title: _('Show "Now" indicator'),
-            subtitle: _('Use "Now" for events currently in progress'),
+        const modeLabels = [_('Icon only'), _('Next event (time & title)'), _('Current / Next event'), _('List of upcoming times')];
+        const displayModeRow = new Adw.ComboRow({
+            title: _('Display mode'),
+            model: Gtk.StringList.new(modeLabels),
         });
-        settings.bind('show-ongoing-indicator', nowIndicatorRow, 'active', Gio.SettingsBindFlags.DEFAULT);
-        group.add(nowIndicatorRow);
+        const currentMode = settings.get_string('display-mode');
+        const selectedMode = Math.max(0, DISPLAY_MODES.indexOf(currentMode));
+        displayModeRow.set_selected(selectedMode);
+        displayModeRow.connect('notify::selected', row => {
+            settings.set_string('display-mode', DISPLAY_MODES[row.get_selected()]);
+        });
+        group.add(displayModeRow);
     }
 }
