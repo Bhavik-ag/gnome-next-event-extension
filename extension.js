@@ -586,6 +586,8 @@ export default class NextEventExtension extends Extension {
             }
 
             let eventColor = ev.color;
+            let eventDescription = "";
+            let eventLocation = "";
             let extraText = "";
             if (ev.id) {
                 const parts = ev.id.split('\n');
@@ -594,7 +596,10 @@ export default class NextEventExtension extends Extension {
                     eventColor = this._getCalendarColor(sourceUid);
                 }
                 if (parts.length > 1 && parts[1]) {
-                    extraText = this._getEventText(sourceUid, parts[1]);
+                    const details = this._getEventDetails(sourceUid, parts[1]);
+                    eventDescription = details.description || "";
+                    eventLocation = details.location || "";
+                    extraText = `${eventDescription} ${eventLocation}`;
                 }
             }
 
@@ -635,14 +640,6 @@ export default class NextEventExtension extends Extension {
                 timeString = `${this._formatDateTime(ev.date, !ev.allDay)} - ${this._formatDateTime(endToFormat, !ev.allDay)}`;
             }
 
-            const timeLabel = new St.Label({
-                text: timeString,
-            });
-            timeLabel.set_style('font-size: 0.85em; opacity: 0.8;');
-            labelBox.add_child(timeLabel);
-
-            item.add_child(labelBox);
-
             const textToSearch = `${ev.summary || ''} ${ev.location || ''} ${ev.description || ''} ${extraText}`;
             const links = [];
 
@@ -669,6 +666,37 @@ export default class NextEventExtension extends Extension {
                 links.push({ url: indicoUrl, icon: 'x-office-calendar-symbolic', name: 'Indico' });
             }
 
+            let displayLocation = eventLocation ? eventLocation.trim() : '';
+            if (displayLocation) {
+                const urlRegex = /https?:\/\/[^\s<>"']+/;
+                const locationUrlMatch = displayLocation.match(urlRegex);
+                
+                if (locationUrlMatch) {
+                    const matchedUrl = locationUrlMatch[0];
+                    const alreadyInLinks = links.some(l => l.url === matchedUrl || matchedUrl.includes(l.url) || l.url.includes(matchedUrl));
+                    
+                    if (!alreadyInLinks) {
+                        links.push({ url: matchedUrl, icon: 'web-browser-symbolic', name: 'Link' });
+                    }
+                    
+                    displayLocation = displayLocation.replace(matchedUrl, '').trim();
+                }
+                
+                displayLocation = displayLocation.replace(/^[,|-]\s*/, '').replace(/\s*[,|-]$/, '').trim();
+                if (displayLocation.length > 0) {
+                    timeString += `, ${displayLocation}`;
+                }
+            }
+
+            const timeLabel = new St.Label({
+                text: timeString,
+            });
+            timeLabel.set_style('font-size: 0.85em; opacity: 0.8;');
+            labelBox.add_child(timeLabel);
+
+            item.add_child(labelBox);
+
+
             for (const link of links) {
                 const btn = new St.Button({
                     style_class: 'button',
@@ -690,13 +718,13 @@ export default class NextEventExtension extends Extension {
         }
     }
 
-    _getEventText(sourceUid, eventUid) {
+    _getEventDetails(sourceUid, eventUid) {
         if (!this._sourceRegistry) {
             try {
                 this._sourceRegistry = EDataServer.SourceRegistry.new_sync(null);
             } catch (e) {
                 console.warn("ECAL SourceRegistry Error: " + e);
-                return "";
+                return { description: "", location: "" };
             }
         }
         if (!this._ecalClients) this._ecalClients = {};
@@ -707,12 +735,12 @@ export default class NextEventExtension extends Extension {
                 const source = this._sourceRegistry.ref_source(sourceUid);
                 if (!source) {
                     console.warn("ECAL Error: Source not found for " + sourceUid);
-                    return "";
+                    return { description: "", location: "" };
                 }
                 client = ECal.Client.connect_sync(source, ECal.ClientSourceType.EVENTS, 1, null);
                 if (!client) {
                     console.warn("ECAL Error: Failed to connect client for " + sourceUid);
-                    return "";
+                    return { description: "", location: "" };
                 }
                 this._ecalClients[sourceUid] = client;
             }
@@ -720,20 +748,21 @@ export default class NextEventExtension extends Extension {
             const [success, comp] = client.get_object_sync(eventUid, null, null);
             if (!success || !comp) {
                 console.warn("ECAL Error: Failed to get object " + eventUid);
-                return "";
+                return { description: "", location: "" };
             }
             
-            let text = "";
+            let description = "";
+            let location = "";
             const descProp = comp.get_first_property(ICalGLib.PropertyKind.DESCRIPTION_PROPERTY);
-            if (descProp) text += " " + descProp.get_description();
+            if (descProp) description = descProp.get_description();
             
             const locProp = comp.get_first_property(ICalGLib.PropertyKind.LOCATION_PROPERTY);
-            if (locProp) text += " " + locProp.get_location();
+            if (locProp) location = locProp.get_location();
             
-            return text;
+            return { description, location };
         } catch (e) {
             console.warn("ECAL Error: " + e);
-            return "";
+            return { description: "", location: "" };
         }
     }
 
