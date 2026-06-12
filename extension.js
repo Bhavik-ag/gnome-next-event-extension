@@ -265,7 +265,9 @@ export default class NextEventExtension extends Extension {
         this._lastRequestStart = requestStart;
         this._lastRequestEnd = requestEnd;
 
+        this._isRequestingRange = true;
         this._eventSource.requestRange(requestStart, requestEnd);
+        this._isRequestingRange = false;
 
         if (this._initialRefreshId) {
             GLib.source_remove(this._initialRefreshId);
@@ -285,6 +287,9 @@ export default class NextEventExtension extends Extension {
      */
     _refresh() {
         if (!this._label || !this._eventSource || !this._indicator)
+            return;
+
+        if (this._isRequestingRange || this._eventSource.isLoading || this._eventSource.hasLoaded === false)
             return;
 
         const now = new Date();
@@ -683,15 +688,17 @@ export default class NextEventExtension extends Extension {
                 }
                 
                 displayLocation = displayLocation.replace(/^[,|-]\s*/, '').replace(/\s*[,|-]$/, '').trim();
-                if (displayLocation.length > 0) {
-                    timeString += `, ${displayLocation}`;
-                }
+            }
+
+            if (displayLocation && displayLocation.length > 0) {
+                timeString += `, ${displayLocation}`;
             }
 
             const timeLabel = new St.Label({
                 text: timeString,
             });
-            timeLabel.set_style('font-size: 0.85em; opacity: 0.8;');
+            timeLabel.set_style('font-size: 0.85em; opacity: 0.8; max-width: 280px;');
+            timeLabel.clutter_text.line_wrap = true;
             labelBox.add_child(timeLabel);
 
             item.add_child(labelBox);
