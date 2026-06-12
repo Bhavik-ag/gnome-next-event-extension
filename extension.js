@@ -30,6 +30,7 @@ export default class NextEventExtension extends Extension {
         this._settings = this.getSettings();
         this._settingsSignals = [];
         this._upcomingEvents = [];
+        this._selectedDate = new Date();
         this._createIndicator();
 
         this._createEventSource();
@@ -78,6 +79,9 @@ export default class NextEventExtension extends Extension {
         this._settingsSignals = [];
         this._settings = null;
         this._upcomingEvents = [];
+        this._selectedDate = null;
+        this._lastRequestStart = null;
+        this._lastRequestEnd = null;
     }
 
     _createIndicator() {
@@ -115,6 +119,14 @@ export default class NextEventExtension extends Extension {
         this._indicator.add_child(box);
 
         Main.panel.addToStatusArea('next-event', this._indicator, 0, this._getPanelPosition());
+        
+        this._indicator.menu.connect('open-state-changed', (menu, isOpen) => {
+            if (!isOpen) {
+                this._selectedDate = new Date();
+                this._refresh();
+            }
+        });
+
         this._populateMenu();
     }
 
@@ -216,15 +228,38 @@ export default class NextEventExtension extends Extension {
      * DBusEventSource is lazy — it only fetches data when a range is requested.
      */
     _requestAndRefresh(forceReload = false) {
-        if (forceReload)
+        if (forceReload) {
             this._createEventSource();
+            this._lastRequestStart = null;
+            this._lastRequestEnd = null;
+        }
 
         const now = new Date();
-
         const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
         const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
 
-        this._eventSource.requestRange(todayStart, todayEnd);
+        const selDate = this._selectedDate || now;
+        const dayOfWeek = selDate.getDay();
+        const distFromMonday = (dayOfWeek + 6) % 7;
+        const startOfWeek = new Date(selDate.getFullYear(), selDate.getMonth(), selDate.getDate() - distFromMonday, 0, 0, 0);
+        const endOfWeek = new Date(selDate.getFullYear(), selDate.getMonth(), selDate.getDate() - distFromMonday + 6, 23, 59, 59);
+
+        const requestStart = new Date(Math.min(todayStart, startOfWeek));
+        const requestEnd = new Date(Math.max(todayEnd, endOfWeek));
+
+        const rangeChanged = !this._lastRequestStart || !this._lastRequestEnd || 
+                             this._lastRequestStart.getTime() !== requestStart.getTime() || 
+                             this._lastRequestEnd.getTime() !== requestEnd.getTime();
+
+        if (!rangeChanged && !forceReload) {
+            this._refresh();
+            return;
+        }
+
+        this._lastRequestStart = requestStart;
+        this._lastRequestEnd = requestEnd;
+
+        this._eventSource.requestRange(requestStart, requestEnd);
 
         if (this._initialRefreshId) {
             GLib.source_remove(this._initialRefreshId);
@@ -250,14 +285,14 @@ export default class NextEventExtension extends Extension {
         const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
         const todayEnd   = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
 
-        const events = this._eventSource.getEvents(todayStart, todayEnd);
-        const sortedEvents = (events || []).sort((a, b) => a.date - b.date);
-        const upcoming = sortedEvents.filter(ev => ev.date >= now || ev.end >= now);
-        this._allEvents = sortedEvents;
+        const events = this._eventSource.getEvents(todayStart, todayEnd) || [];
+        const sortedTodayEvents = events.sort((a, b) => a.date - b.date);
+        const upcoming = sortedTodayEvents.filter(ev => ev.date >= now || ev.end >= now);
+        
         this._upcomingEvents = upcoming;
         this._populateMenu();
 
-        if (this._allEvents.length === 0) {
+        if (sortedTodayEvents.length === 0) {
             this._label.set_text('No events today');
             return;
         }
@@ -290,8 +325,118 @@ export default class NextEventExtension extends Extension {
 
         this._indicator.menu.removeAll();
 
-        if (!this._allEvents || this._allEvents.length === 0) {
-            const emptyItem = new PopupMenu.PopupMenuItem('No events today', {
+        const selDate = this._selectedDate || new Date();
+        const dayOfWeek = selDate.getDay();
+        const distFromMonday = (dayOfWeek + 6) % 7;
+        const startOfWeek = new Date(selDate.getFullYear(), selDate.getMonth(), selDate.getDate() - distFromMonday);
+
+        const weekBox = new St.BoxLayout({
+            vertical: false,
+            style: 'padding: 8px; margin-bottom: 4px;',
+            x_expand: true,
+            reactive: true,
+        });
+
+        weekBox.connect('scroll-event', (actor, event) => {
+            const direction = event.get_scroll_direction();
+            if (direction === Clutter.ScrollDirection.UP) {
+                this._selectedDate = new Date(selDate.getFullYear(), selDate.getMonth(), selDate.getDate() - 1);
+                this._requestAndRefresh();
+                return Clutter.EVENT_STOP;
+            } else if (direction === Clutter.ScrollDirection.DOWN) {
+                this._selectedDate = new Date(selDate.getFullYear(), selDate.getMonth(), selDate.getDate() + 1);
+                this._requestAndRefresh();
+                return Clutter.EVENT_STOP;
+            }
+            return Clutter.EVENT_PROPAGATE;
+        });
+
+        const prevBtn = new St.Button({
+            child: new St.Icon({ icon_name: 'go-previous-symbolic', icon_size: 16 }),
+            style_class: 'button',
+            style: 'padding: 6px; border-radius: 4px; margin-right: 8px;',
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        prevBtn.connect('clicked', () => {
+            this._selectedDate = new Date(selDate.getFullYear(), selDate.getMonth(), selDate.getDate() - 7);
+            this._requestAndRefresh();
+        });
+        weekBox.add_child(prevBtn);
+
+        const daysBox = new St.BoxLayout({
+            vertical: false,
+            x_expand: true,
+            x_align: Clutter.ActorAlign.CENTER,
+        });
+
+        const daysOfWeek = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+        const todayStr = new Date().toDateString();
+
+        for (let i = 0; i < 7; i++) {
+            const dateObj = new Date(startOfWeek.getFullYear(), startOfWeek.getMonth(), startOfWeek.getDate() + i);
+            const isSelected = dateObj.toDateString() === selDate.toDateString();
+            const isToday = dateObj.toDateString() === todayStr;
+
+            const dayBox = new St.BoxLayout({
+                vertical: true,
+                x_align: Clutter.ActorAlign.CENTER,
+            });
+
+            const dayName = new St.Label({
+                text: daysOfWeek[i],
+                style: 'font-size: 0.8em; opacity: 0.7; margin-bottom: 2px;',
+                x_align: Clutter.ActorAlign.CENTER,
+            });
+
+            const dayNum = new St.Label({
+                text: dateObj.getDate().toString(),
+                style: isToday ? 'font-weight: bold; color: #3584e4;' : '',
+                x_align: Clutter.ActorAlign.CENTER,
+            });
+
+            dayBox.add_child(dayName);
+            dayBox.add_child(dayNum);
+
+            const bgStyle = isSelected ? 'background-color: rgba(128, 128, 128, 0.2);' : 'background-color: transparent;';
+            const dayBtn = new St.Button({
+                child: dayBox,
+                style_class: 'button',
+                style: `padding: 4px 8px; border-radius: 4px; margin: 0 2px; ${bgStyle}`,
+            });
+            dayBtn.connect('clicked', () => {
+                this._selectedDate = dateObj;
+                this._requestAndRefresh();
+            });
+            daysBox.add_child(dayBtn);
+        }
+
+        weekBox.add_child(daysBox);
+
+        const nextBtn = new St.Button({
+            child: new St.Icon({ icon_name: 'go-next-symbolic', icon_size: 16 }),
+            style_class: 'button',
+            style: 'padding: 6px; border-radius: 4px; margin-left: 8px;',
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        nextBtn.connect('clicked', () => {
+            this._selectedDate = new Date(selDate.getFullYear(), selDate.getMonth(), selDate.getDate() + 7);
+            this._requestAndRefresh();
+        });
+        weekBox.add_child(nextBtn);
+
+        const weekMenuItem = new PopupMenu.PopupBaseMenuItem({ reactive: false, can_focus: false });
+        weekMenuItem.add_child(weekBox);
+        this._indicator.menu.addMenuItem(weekMenuItem);
+        this._indicator.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+
+        const selStart = new Date(selDate.getFullYear(), selDate.getMonth(), selDate.getDate(), 0, 0, 0);
+        const selEnd   = new Date(selDate.getFullYear(), selDate.getMonth(), selDate.getDate(), 23, 59, 59);
+        const selEvents = this._eventSource ? (this._eventSource.getEvents(selStart, selEnd) || []) : [];
+        const sortedEvents = selEvents.sort((a, b) => a.date - b.date);
+
+        if (sortedEvents.length === 0) {
+            const isToday = selDate.toDateString() === todayStr;
+            const emptyItem = new PopupMenu.PopupMenuItem(isToday ? 'No events today' : 'No events', {
                 reactive: false,
                 can_focus: false,
             });
@@ -299,7 +444,7 @@ export default class NextEventExtension extends Extension {
             return;
         }
 
-        for (const ev of this._allEvents) {
+        for (const ev of sortedEvents) {
             const now = new Date();
             const isNow = ev.date <= now && ev.end >= now;
             
