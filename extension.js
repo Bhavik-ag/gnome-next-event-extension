@@ -512,15 +512,22 @@ export default class NextEventExtension extends Extension {
                     const nowHour = now.getHours() + now.getMinutes() / 60;
                     const nowY = (nowHour / 24) * TIMELINE_HEIGHT;
 
+                    const dot = new St.Widget({
+                        style: 'background-color: #ed333b; border-radius: 3px;',
+                    });
+                    dot.set_position(0, nowY - 2);
+                    dot.set_size(6, 6);
+                    dayCol.add_child(dot);
+
                     const redLine = new St.Widget({
                         style: 'background-color: #ed333b; border-radius: 1px;',
                     });
-                    redLine.set_position(0, nowY);
+                    redLine.set_position(6, nowY);
                     redLine.set_size(-1, 2);
                     redLine.add_constraint(new Clutter.BindConstraint({
                         source: dayCol,
                         coordinate: Clutter.BindCoordinate.WIDTH,
-                        offset: 0,
+                        offset: -6,
                     }));
                     dayCol.add_child(redLine);
                 }
