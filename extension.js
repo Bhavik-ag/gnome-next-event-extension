@@ -168,6 +168,12 @@ export default class NextEventExtension extends Extension {
                 this._refresh();
             })
         );
+
+        this._settingsSignals.push(
+            this._settings.connect('changed::show-pill-background', () => {
+                this._updateLabelStyle();
+            })
+        );
     }
 
     _startTimer() {
@@ -226,7 +232,23 @@ export default class NextEventExtension extends Extension {
             return;
 
         const fontSize = Math.max(10, this._settings?.get_int('font-size') ?? DEFAULT_FONT_SIZE);
-        this._label.set_style(`font-size: ${fontSize}px; padding: 0 8px;`);
+        const showPillBackground = this._settings?.get_boolean('show-pill-background') ?? true;
+        
+        if (this._currentEventColor && showPillBackground) {
+            let textColor = '#ffffff';
+            let hex = this._currentEventColor.replace('#', '');
+            if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
+            if (hex.length === 6) {
+                const r = parseInt(hex.substr(0, 2), 16);
+                const g = parseInt(hex.substr(2, 2), 16);
+                const b = parseInt(hex.substr(4, 2), 16);
+                const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
+                textColor = (yiq >= 128) ? '#000000' : '#ffffff';
+            }
+            this._label.set_style(`font-size: ${fontSize}px; padding: 2px 12px; background-color: ${this._currentEventColor}; color: ${textColor}; border-radius: 99px; margin-left: 4px;`);
+        } else {
+            this._label.set_style(`font-size: ${fontSize}px; padding: 0 8px;`);
+        }
     }
 
     /**
@@ -333,21 +355,34 @@ export default class NextEventExtension extends Extension {
             const nextEv = sortedTodayEvents.find(ev => ev.date > now);
             if (nextEv) {
                 this._label.set_text(formatEvent(nextEv, false));
+                this._currentEventColor = this._getEventColor(nextEv);
+                this._updateLabelStyle();
             } else {
                 this._label.set_text('Done for today');
+                this._currentEventColor = null;
+                this._updateLabelStyle();
             }
         } else if (displayMode === 'now-next-event') {
             const currentOrNextEv = sortedTodayEvents.find(ev => ev.date > now || (ev.date <= now && ev.end > now));
             if (currentOrNextEv) {
                 this._label.set_text(formatEvent(currentOrNextEv, true));
+                this._currentEventColor = this._getEventColor(currentOrNextEv);
+                this._updateLabelStyle();
             } else {
                 this._label.set_text('Done for today');
+                this._currentEventColor = null;
+                this._updateLabelStyle();
             }
         } else {
             if (upcoming.length === 0) {
                 this._label.set_text('Done for today');
+                this._currentEventColor = null;
+                this._updateLabelStyle();
                 return;
             }
+
+            this._currentEventColor = null;
+            this._updateLabelStyle();
 
             const timeStrings = upcoming.map(ev => {
                 const isNow = ev.date <= now && ev.end >= now;
@@ -484,12 +519,7 @@ export default class NextEventExtension extends Extension {
                         h = TIMELINE_HEIGHT;
                     }
 
-                    let eventColor = ev.color;
-                    if (!eventColor && ev.id) {
-                        const parts = ev.id.split('\n');
-                        eventColor = this._getCalendarColor(parts[0]);
-                    }
-                    if (!eventColor) eventColor = '#3584e4';
+                    let eventColor = this._getEventColor(ev);
 
                     const isAllDayOrMulti = ev.allDay || (ev.end.getTime() - ev.date.getTime() >= 24 * 3600000);
 
@@ -597,16 +627,13 @@ export default class NextEventExtension extends Extension {
                 item.opacity = 127;
             }
 
-            let eventColor = ev.color;
+            let eventColor = this._getEventColor(ev);
             let eventDescription = "";
             let eventLocation = "";
             let extraText = "";
             if (ev.id) {
                 const parts = ev.id.split('\n');
                 const sourceUid = parts[0];
-                if (!eventColor) {
-                    eventColor = this._getCalendarColor(sourceUid);
-                }
                 if (parts.length > 1 && parts[1]) {
                     const details = this._getEventDetails(sourceUid, parts[1]);
                     eventDescription = details.description || "";
@@ -831,6 +858,15 @@ export default class NextEventExtension extends Extension {
         }
         this._calendarColors[sourceUid] = palette[colorIndex];
         return this._calendarColors[sourceUid];
+    }
+
+    _getEventColor(ev) {
+        let eventColor = ev.color;
+        if (!eventColor && ev.id) {
+            const parts = ev.id.split('\n');
+            eventColor = this._getCalendarColor(parts[0]);
+        }
+        return eventColor || '#3584e4';
     }
 
     /**

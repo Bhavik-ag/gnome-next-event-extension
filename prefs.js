@@ -91,5 +91,12 @@ export default class NextEventPreferences extends ExtensionPreferences {
         });
         settings.bind('show-mini-timeline', miniTimelineRow, 'active', Gio.SettingsBindFlags.DEFAULT);
         group.add(miniTimelineRow);
+
+        const showPillBackgroundRow = new Adw.SwitchRow({
+            title: _('Show pill background'),
+            subtitle: _('Draw a background color around the top bar event'),
+        });
+        settings.bind('show-pill-background', showPillBackgroundRow, 'active', Gio.SettingsBindFlags.DEFAULT);
+        group.add(showPillBackgroundRow);
     }
 }

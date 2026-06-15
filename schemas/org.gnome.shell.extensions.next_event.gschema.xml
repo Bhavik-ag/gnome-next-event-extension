@@ -27,5 +27,9 @@
     <key name="show-mini-timeline" type="b">
       <default>true</default>
     </key>
+
+    <key name="show-pill-background" type="b">
+      <default>true</default>
+    </key>
   </schema>
 </schemalist>
