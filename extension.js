@@ -30,6 +30,7 @@ export default class NextEventExtension extends Extension {
         this._settings = this.getSettings();
         this._settingsSignals = [];
         this._upcomingEvents = [];
+        this._skippedEventIds = new Set();
         this._selectedDate = new Date();
         this._createIndicator();
 
@@ -79,6 +80,7 @@ export default class NextEventExtension extends Extension {
         this._settingsSignals = [];
         this._settings = null;
         this._upcomingEvents = [];
+        this._skippedEventIds = null;
         this._selectedDate = null;
         this._lastRequestStart = null;
         this._lastRequestEnd = null;
@@ -320,7 +322,13 @@ export default class NextEventExtension extends Extension {
 
         const events = this._eventSource.getEvents(todayStart, todayEnd) || [];
         const sortedTodayEvents = events.sort((a, b) => a.date - b.date);
-        const upcoming = sortedTodayEvents.filter(ev => ev.date >= now || ev.end >= now);
+
+        const activeTodayEvents = sortedTodayEvents.filter(ev => {
+            const eventKey = ev.id || `${ev.date.getTime()}-${ev.summary}`;
+            return !this._skippedEventIds.has(eventKey);
+        });
+
+        const upcoming = activeTodayEvents.filter(ev => ev.date >= now || ev.end >= now);
         
         this._upcomingEvents = upcoming;
         this._populateMenu();
@@ -352,7 +360,7 @@ export default class NextEventExtension extends Extension {
         };
 
         if (displayMode === 'next-event') {
-            const nextEv = sortedTodayEvents.find(ev => ev.date > now);
+            const nextEv = activeTodayEvents.find(ev => ev.date > now);
             if (nextEv) {
                 this._label.set_text(formatEvent(nextEv, false));
                 this._currentEventColor = this._getEventColor(nextEv);
@@ -363,7 +371,7 @@ export default class NextEventExtension extends Extension {
                 this._updateLabelStyle();
             }
         } else if (displayMode === 'now-next-event') {
-            const currentOrNextEv = sortedTodayEvents.find(ev => ev.date > now || (ev.date <= now && ev.end > now));
+            const currentOrNextEv = activeTodayEvents.find(ev => ev.date > now || (ev.date <= now && ev.end > now));
             if (currentOrNextEv) {
                 this._label.set_text(formatEvent(currentOrNextEv, true));
                 this._currentEventColor = this._getEventColor(currentOrNextEv);
@@ -623,7 +631,12 @@ export default class NextEventExtension extends Extension {
 
             const item = new PopupMenu.PopupBaseMenuItem();
             const isPast = ev.end < now;
+            const eventKey = ev.id || `${ev.date.getTime()}-${ev.summary}`;
+            const isSkipped = this._skippedEventIds.has(eventKey);
+
             if (isPast) {
+                item.opacity = 127;
+            } else if (isSkipped) {
                 item.opacity = 127;
             }
 
@@ -642,15 +655,65 @@ export default class NextEventExtension extends Extension {
                 }
             }
 
-            if (eventColor) {
-                const colorDot = new St.Widget({
-                    width: 12,
-                    height: 12,
-                    style: `background-color: ${eventColor}; border-radius: 6px; margin-right: 8px;`,
-                    y_align: Clutter.ActorAlign.CENTER,
-                });
-                item.add_child(colorDot);
-            }
+            const skipIconName = isSkipped ? 'list-add-symbolic' : 'list-remove-symbolic';
+            
+            const dotContainer = new St.Widget({
+                layout_manager: new Clutter.BinLayout(),
+                width: 16,
+                height: 16,
+            });
+
+            const dotWidget = new St.Widget({
+                width: 12,
+                height: 12,
+                style: eventColor ? `background-color: ${eventColor}; border-radius: 6px;` : 'background-color: transparent;',
+                x_align: Clutter.ActorAlign.CENTER,
+                y_align: Clutter.ActorAlign.CENTER,
+                x_expand: true,
+                y_expand: true,
+            });
+
+            const skipIcon = new St.Icon({
+                icon_name: skipIconName,
+                icon_size: 14,
+                x_align: Clutter.ActorAlign.CENTER,
+                y_align: Clutter.ActorAlign.CENTER,
+                x_expand: true,
+                y_expand: true,
+            });
+
+            dotContainer.add_child(dotWidget);
+            dotContainer.add_child(skipIcon);
+
+            dotWidget.opacity = 255;
+            skipIcon.opacity = 0;
+
+            const dotBtn = new St.Button({
+                child: dotContainer,
+                style: 'margin-right: 6px; border-radius: 4px; padding: 2px; background-color: transparent;',
+                y_align: Clutter.ActorAlign.CENTER,
+            });
+
+            dotBtn.connect('clicked', () => {
+                if (isSkipped) {
+                    this._skippedEventIds.delete(eventKey);
+                } else {
+                    this._skippedEventIds.add(eventKey);
+                }
+                this._refresh();
+            });
+
+            item.connect('notify::hover', () => {
+                if (item.hover) {
+                    dotWidget.opacity = 0;
+                    skipIcon.opacity = 255;
+                } else {
+                    dotWidget.opacity = 255;
+                    skipIcon.opacity = 0;
+                }
+            });
+
+            item.add_child(dotBtn);
 
             const labelBox = new St.BoxLayout({
                 vertical: true,
@@ -751,6 +814,8 @@ export default class NextEventExtension extends Extension {
                 });
                 item.add_child(btn);
             }
+
+
 
             item.connect('activate', () => {
                 Util.spawn(['sh', '-c', 'gtk-launch org.gnome.Calendar.desktop || flatpak run org.gnome.Calendar || gnome-calendar']);
