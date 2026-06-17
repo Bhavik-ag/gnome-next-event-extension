@@ -86,6 +86,10 @@ export default class NextEventExtension extends Extension {
         this._lastRequestEnd = null;
     }
 
+    /**
+     * Creates and sets up the panel button (indicator) with its icon and label,
+     * adding it to the top bar status area.
+     */
     _createIndicator() {
         const currentText = this._label?.get_text() || 'Loading...';
         if (this._indicator) {
@@ -132,6 +136,9 @@ export default class NextEventExtension extends Extension {
         this._populateMenu();
     }
 
+    /**
+     * Connects signals to update the extension dynamically when settings change.
+     */
     _connectSettingsSignals() {
         this._settingsSignals.push(
             this._settings.connect('changed::panel-position', () => {
@@ -178,6 +185,9 @@ export default class NextEventExtension extends Extension {
         );
     }
 
+    /**
+     * Starts or restarts the timer that periodically requests and refreshes the events.
+     */
     _startTimer() {
         if (this._timerId) {
             GLib.source_remove(this._timerId);
@@ -199,6 +209,9 @@ export default class NextEventExtension extends Extension {
         );
     }
 
+    /**
+     * Creates the calendar event source to fetch events from GNOME Calendar.
+     */
     _createEventSource() {
         if (this._eventSource) {
             if (this._changedId) {
@@ -215,20 +228,33 @@ export default class NextEventExtension extends Extension {
         });
     }
 
+    /**
+     * Retrieves the configured panel position for the indicator from settings.
+     */
     _getPanelPosition() {
         const value = this._settings?.get_string('panel-position') || DEFAULT_PANEL_POSITION;
         return PANEL_POSITIONS.has(value) ? value : DEFAULT_PANEL_POSITION;
     }
 
+    /**
+     * Retrieves the configured maximum title length for the indicator label from settings.
+     */
     _getMaxTitleLength() {
         const value = this._settings?.get_int('max-title-length') ?? DEFAULT_MAX_TITLE_LENGTH;
         return Math.max(10, value);
     }
 
+    /**
+     * Retrieves the configured display mode (e.g. 'upcoming-times', 'next-event') from settings.
+     */
     _getDisplayMode() {
         return this._settings?.get_string('display-mode') || 'upcoming-times';
     }
 
+    /**
+     * Updates the CSS style of the panel indicator label based on user settings
+     * (e.g. font size, background pill color).
+     */
     _updateLabelStyle() {
         if (!this._label)
             return;
@@ -408,6 +434,10 @@ export default class NextEventExtension extends Extension {
         }
     }
 
+    /**
+     * Builds and populates the drop-down menu of the indicator with a week view,
+     * events for the selected day, and relevant links.
+     */
     _populateMenu() {
         if (!this._indicator)
             return;
@@ -837,6 +867,12 @@ export default class NextEventExtension extends Extension {
         }
     }
 
+    /**
+     * Retrieves event description and location from Evolution Data Server for a given event ID.
+     * @param {string} sourceUid - The UID of the calendar source.
+     * @param {string} eventUid - The UID of the event.
+     * @returns {Object} An object containing the event description and location.
+     */
     _getEventDetails(sourceUid, eventUid) {
         if (!this._sourceRegistry) {
             try {
@@ -885,6 +921,12 @@ export default class NextEventExtension extends Extension {
         }
     }
 
+    /**
+     * Fetches the calendar color associated with a given source UID from Evolution Data Server
+     * or reads it from the local Evolution sources file configuration.
+     * @param {string} sourceUid - The UID of the calendar source.
+     * @returns {string} The calendar color in hex format.
+     */
     _getCalendarColor(sourceUid) {
         if (!this._calendarColors) this._calendarColors = {};
         if (this._calendarColors[sourceUid]) return this._calendarColors[sourceUid];
@@ -938,6 +980,12 @@ export default class NextEventExtension extends Extension {
         return this._calendarColors[sourceUid];
     }
 
+    /**
+     * Determines the appropriate color for a given event, falling back to its calendar's color
+     * if the event does not specify one.
+     * @param {Object} ev - The event object.
+     * @returns {string} The event color in hex format.
+     */
     _getEventColor(ev) {
         let eventColor = ev.color;
         if (!eventColor && ev.id) {
@@ -966,6 +1014,13 @@ export default class NextEventExtension extends Extension {
         return date.toLocaleString(undefined, options);
     }
 
+    /**
+     * Truncates a string to a maximum length while accurately preserving
+     * multi-codepoint characters like emojis and country flags as single units.
+     * @param {string} str - The string to truncate.
+     * @param {number} maxLength - The maximum allowed visual length.
+     * @returns {string} The truncated string.
+     */
     _truncateString(str, maxLength) {
         if (!str || str.length <= maxLength) return str;
         
