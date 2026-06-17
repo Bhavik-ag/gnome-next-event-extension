@@ -353,9 +353,7 @@ export default class NextEventExtension extends Extension {
             let timeStr = isNow && showNowIfOngoing ? 'Now' : this._formatTime(ev.date);
             let titleStr = ev.summary || 'Untitled Event';
             const maxTitleLength = this._getMaxTitleLength();
-            if (titleStr.length > maxTitleLength) {
-                titleStr = titleStr.substring(0, maxTitleLength - 1) + '...';
-            }
+            titleStr = this._truncateString(titleStr, maxTitleLength);
             return `${timeStr} ${titleStr}`;
         };
 
@@ -624,10 +622,7 @@ export default class NextEventExtension extends Extension {
             const now = new Date();
             const isNow = ev.date <= now && ev.end >= now;
             
-            const maxTitleLength = this._getMaxTitleLength();
             let title = ev.summary || 'Untitled Event';
-            if (title.length > maxTitleLength)
-                title = title.substring(0, maxTitleLength - 1) + '...';
 
             const item = new PopupMenu.PopupBaseMenuItem();
             const isPast = ev.end < now;
@@ -730,9 +725,12 @@ export default class NextEventExtension extends Extension {
             const titleLabel = new St.Label({
                 text: title,
             });
+            titleLabel.clutter_text.line_wrap = true;
+            let titleStyle = 'max-width: 280px;';
             if (isNow) {
-                titleLabel.set_style('font-weight: bold;');
+                titleStyle += ' font-weight: bold;';
             }
+            titleLabel.set_style(titleStyle);
             labelBox.add_child(titleLabel);
 
             let effectiveEnd = new Date(ev.end.getTime() - 1);
@@ -966,5 +964,16 @@ export default class NextEventExtension extends Extension {
             options.minute = '2-digit';
         }
         return date.toLocaleString(undefined, options);
+    }
+
+    _truncateString(str, maxLength) {
+        if (!str || str.length <= maxLength) return str;
+        
+        const regex = /\p{Regional_Indicator}{2}|\p{Emoji}(?:\p{Emoji_Modifier}|\uFE0F)*(?:\u200D\p{Emoji}(?:\p{Emoji_Modifier}|\uFE0F)*)*|./gu;
+        const chars = str.match(regex);
+        
+        if (!chars || chars.length <= maxLength) return str;
+        
+        return chars.slice(0, maxLength - 1).join('') + '...';
     }
 }
