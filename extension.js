@@ -655,7 +655,7 @@ export default class NextEventExtension extends Extension {
                 }
             }
 
-            const skipIconName = isSkipped ? 'list-add-symbolic' : 'list-remove-symbolic';
+            const skipIconName = isSkipped ? 'app-remove-symbolic' : 'app-installed-symbolic';
             
             const dotContainer = new St.Widget({
                 layout_manager: new Clutter.BinLayout(),
@@ -673,14 +673,20 @@ export default class NextEventExtension extends Extension {
                 y_expand: true,
             });
 
-            const skipIcon = new St.Icon({
-                icon_name: skipIconName,
+            const skipIconFile = this.dir.get_child('icons').get_child(`${skipIconName}.svg`);
+            let skipIconProps = {
                 icon_size: 14,
                 x_align: Clutter.ActorAlign.CENTER,
                 y_align: Clutter.ActorAlign.CENTER,
                 x_expand: true,
                 y_expand: true,
-            });
+            };
+            if (skipIconFile.query_exists(null)) {
+                skipIconProps.gicon = new Gio.FileIcon({ file: skipIconFile });
+            } else {
+                skipIconProps.icon_name = skipIconName;
+            }
+            const skipIcon = new St.Icon(skipIconProps);
 
             dotContainer.add_child(dotWidget);
             dotContainer.add_child(skipIcon);
@@ -765,7 +771,7 @@ export default class NextEventExtension extends Extension {
                 }
             }
             if (indicoUrl) {
-                links.push({ url: indicoUrl, icon: 'x-office-calendar-symbolic', name: 'Indico' });
+                links.push({ url: indicoUrl, icon: 'webpage-symbolic', name: 'Indico' });
             }
 
             let displayLocation = eventLocation ? eventLocation.trim() : '';
@@ -778,7 +784,7 @@ export default class NextEventExtension extends Extension {
                     const alreadyInLinks = links.some(l => l.url === matchedUrl || matchedUrl.includes(l.url) || l.url.includes(matchedUrl));
                     
                     if (!alreadyInLinks) {
-                        links.push({ url: matchedUrl, icon: 'web-browser-symbolic', name: 'Link' });
+                        links.push({ url: matchedUrl, icon: 'webpage-symbolic', name: 'Link' });
                     }
                     
                     displayLocation = displayLocation.replace(matchedUrl, '').trim();
@@ -802,10 +808,19 @@ export default class NextEventExtension extends Extension {
 
 
             for (const link of links) {
+                let iconChild;
+                const iconFile = this.dir.get_child('icons').get_child(`${link.icon}.svg`);
+                if (iconFile.query_exists(null)) {
+                    const gicon = new Gio.FileIcon({ file: iconFile });
+                    iconChild = new St.Icon({ gicon: gicon, icon_size: 16 });
+                } else {
+                    iconChild = new St.Icon({ icon_name: link.icon, icon_size: 16 });
+                }
+
                 const btn = new St.Button({
                     style_class: 'button',
                     style: 'padding: 4px; margin-left: 6px; border-radius: 4px;',
-                    child: new St.Icon({ icon_name: link.icon, icon_size: 16 }),
+                    child: iconChild,
                     y_align: Clutter.ActorAlign.CENTER,
                 });
                 btn.connect('clicked', () => {
