@@ -30,7 +30,7 @@ export default class NextEventExtension extends Extension {
         this._settings = this.getSettings();
         this._settingsSignals = [];
         this._upcomingEvents = [];
-        this._skippedEventIds = new Set();
+        this._loadSkippedEvents();
         this._selectedDate = new Date();
         this._createIndicator();
 
@@ -338,6 +338,8 @@ export default class NextEventExtension extends Extension {
     _refresh() {
         if (!this._label || !this._eventSource || !this._indicator)
             return;
+
+        this._pruneSkippedEvents();
 
         if (this._isRequestingRange || this._eventSource.isLoading || this._eventSource.hasLoaded === false)
             return;
@@ -729,8 +731,10 @@ export default class NextEventExtension extends Extension {
                 if (isSkipped) {
                     this._skippedEventIds.delete(eventKey);
                 } else {
-                    this._skippedEventIds.add(eventKey);
+                    const expires = new Date(ev.date).setHours(23, 59, 59, 999);
+                    this._skippedEventIds.set(eventKey, expires);
                 }
+                this._saveSkippedEvents();
                 this._refresh();
             });
 
@@ -1030,5 +1034,60 @@ export default class NextEventExtension extends Extension {
         if (!chars || chars.length <= maxLength) return str;
         
         return chars.slice(0, maxLength - 1).join('') + '...';
+    }
+
+    /**
+     * Loads the skipped events from GSettings and initializes the memory map.
+     * Invalid or expired entries are discarded automatically.
+     */
+    _loadSkippedEvents() {
+        this._skippedEventIds = new Map();
+        const savedSkipped = this._settings.get_strv('skipped-events') || [];
+        const nowTime = Date.now();
+        let needsSave = false;
+        for (const s of savedSkipped) {
+            try {
+                const obj = JSON.parse(s);
+                if (obj && obj.k && obj.v > nowTime) {
+                    this._skippedEventIds.set(obj.k, obj.v);
+                } else {
+                    needsSave = true;
+                }
+            } catch(e) {
+                needsSave = true;
+            }
+        }
+        if (needsSave) {
+            this._saveSkippedEvents();
+        }
+    }
+
+    /**
+     * Serializes the current map of skipped events and saves it to GSettings.
+     */
+    _saveSkippedEvents() {
+        const arr = [];
+        for (const [k, v] of this._skippedEventIds.entries()) {
+            arr.push(JSON.stringify({k, v}));
+        }
+        this._settings.set_strv('skipped-events', arr);
+    }
+
+    /**
+     * Removes expired skipped events from memory and updates GSettings if changes were made.
+     * This keeps the skipped events list from growing indefinitely.
+     */
+    _pruneSkippedEvents() {
+        const nowTime = Date.now();
+        let changed = false;
+        for (const [k, v] of this._skippedEventIds.entries()) {
+            if (v <= nowTime) {
+                this._skippedEventIds.delete(k);
+                changed = true;
+            }
+        }
+        if (changed) {
+            this._saveSkippedEvents();
+        }
     }
 }

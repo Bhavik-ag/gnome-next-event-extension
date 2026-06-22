@@ -31,5 +31,9 @@
     <key name="show-pill-background" type="b">
       <default>true</default>
     </key>
+
+    <key name="skipped-events" type="as">
+      <default>[]</default>
+    </key>
   </schema>
 </schemalist>
