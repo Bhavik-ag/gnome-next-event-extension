@@ -262,9 +262,11 @@ export default class NextEventExtension extends Extension {
         const fontSize = Math.max(10, this._settings?.get_int('font-size') ?? DEFAULT_FONT_SIZE);
         const showPillBackground = this._settings?.get_boolean('show-pill-background') ?? true;
         
-        if (this._currentEventColor && showPillBackground) {
+        let colors = this._currentEventColors || [];
+        
+        if (colors.length > 0 && showPillBackground) {
             let textColor = '#ffffff';
-            let hex = this._currentEventColor.replace('#', '');
+            let hex = colors[0].replace('#', '');
             if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
             if (hex.length === 6) {
                 const r = parseInt(hex.substr(0, 2), 16);
@@ -273,7 +275,41 @@ export default class NextEventExtension extends Extension {
                 const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
                 textColor = (yiq >= 128) ? '#000000' : '#ffffff';
             }
-            this._label.set_style(`font-size: ${fontSize}px; padding: 2px 12px; background-color: ${this._currentEventColor}; color: ${textColor}; border-radius: 99px; margin-left: 4px;`);
+            
+            let bgStyle = '';
+            let shadowStyle = '';
+            const uniqueColors = [...new Set(colors)];
+            if (uniqueColors.length === 1) {
+                bgStyle = `background-color: ${uniqueColors[0]};`;
+            } else {
+                try {
+                    const cacheDir = GLib.get_user_cache_dir() + '/gnome-next-event';
+                    GLib.mkdir_with_parents(cacheDir, 0o700);
+                    
+                    const colorsId = 'v3-' + colors.map(c => c.replace('#', '')).join('-');
+                    const svgFile = cacheDir + '/stripe-' + colorsId + '.svg';
+                    
+                    if (!GLib.file_test(svgFile, GLib.FileTest.EXISTS)) {
+                        const W = 40;
+                        let rects = '';
+                        const stripeWidth = W / colors.length;
+                        for (let i = 0; i < colors.length; i++) {
+                            rects += `<rect x="${i * stripeWidth}" width="${stripeWidth}" height="${W}" fill="${colors[i]}" />`;
+                        }
+                        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="40" viewBox="0 0 200 40"><defs><pattern id="s" patternUnits="userSpaceOnUse" width="${W}" height="${W}" patternTransform="rotate(45)"><rect width="${W}" height="${W}" fill="${colors[0]}" />${rects}</pattern></defs><rect width="200" height="40" fill="url(#s)" /></svg>`;
+                        
+                        GLib.file_set_contents(svgFile, new TextEncoder().encode(svg));
+                    }
+                    bgStyle = `background-image: url("file://${svgFile}"); background-size: cover; border: 1px solid rgba(0,0,0,0.1);`;
+                    
+                    const outline = textColor === '#000000' ? '#FFFFFF' : '#000000';
+                    shadowStyle = `text-shadow: 0px 0px 2px ${outline};`;
+                } catch (e) {
+                    console.error('Failed to generate SVG stripe:', e);
+                }
+            }
+
+            this._label.set_style(`font-size: ${fontSize}px; padding: 2px 12px; ${bgStyle} color: ${textColor}; ${shadowStyle} border-radius: 99px; margin-left: 4px;`);
         } else {
             this._label.set_style(`font-size: ${fontSize}px; padding: 0 8px;`);
         }
@@ -376,46 +412,67 @@ export default class NextEventExtension extends Extension {
             return;
         }
 
-        const formatEvent = (ev, showNowIfOngoing) => {
-            const isNow = ev.date <= now && ev.end >= now;
-            let timeStr = isNow && showNowIfOngoing ? 'Now' : this._formatTime(ev.date);
-            let titleStr = ev.summary || 'Untitled Event';
-            const maxTitleLength = this._getMaxTitleLength();
-            titleStr = this._truncateString(titleStr, maxTitleLength);
-            return `${timeStr} ${titleStr}`;
+        const getEventText = (evs, showNowIfOngoing) => {
+            if (!evs || evs.length === 0) return '';
+            
+            const firstEv = evs[0];
+            const isNow = firstEv.date <= now && firstEv.end >= now;
+            let timeStr = isNow && showNowIfOngoing ? 'Now' : this._formatTime(firstEv.date);
+            
+            if (evs.length > 1) {
+                return `${timeStr} ${evs.length} events`;
+            } else {
+                let titleStr = firstEv.summary || 'Untitled Event';
+                const maxTitleLength = this._getMaxTitleLength();
+                titleStr = this._truncateString(titleStr, maxTitleLength);
+                return `${timeStr} ${titleStr}`;
+            }
         };
 
         if (displayMode === 'next-event') {
-            const nextEv = activeTodayEvents.find(ev => ev.date > now);
-            if (nextEv) {
-                this._label.set_text(formatEvent(nextEv, false));
-                this._currentEventColor = this._getEventColor(nextEv);
+            const nextEvs = activeTodayEvents.filter(ev => ev.date > now);
+            if (nextEvs.length > 0) {
+                const firstNextEv = nextEvs[0];
+                const simultaneousEvs = nextEvs.filter(ev => ev.date.getTime() === firstNextEv.date.getTime());
+                
+                this._label.set_text(getEventText(simultaneousEvs, false));
+                this._currentEventColors = simultaneousEvs.map(ev => this._getEventColor(ev));
                 this._updateLabelStyle();
             } else {
                 this._label.set_text('Done for today');
-                this._currentEventColor = null;
+                this._currentEventColors = null;
                 this._updateLabelStyle();
             }
         } else if (displayMode === 'now-next-event') {
-            const currentOrNextEv = activeTodayEvents.find(ev => ev.date > now || (ev.date <= now && ev.end > now));
-            if (currentOrNextEv) {
-                this._label.set_text(formatEvent(currentOrNextEv, true));
-                this._currentEventColor = this._getEventColor(currentOrNextEv);
+            const upcomingEvs = activeTodayEvents.filter(ev => ev.date > now || (ev.date <= now && ev.end > now));
+            if (upcomingEvs.length > 0) {
+                const firstEv = upcomingEvs[0];
+                const isNow = firstEv.date <= now && firstEv.end >= now;
+                
+                let simultaneousEvs;
+                if (isNow) {
+                    simultaneousEvs = upcomingEvs.filter(ev => ev.date <= now && ev.end >= now);
+                } else {
+                    simultaneousEvs = upcomingEvs.filter(ev => ev.date.getTime() === firstEv.date.getTime());
+                }
+
+                this._label.set_text(getEventText(simultaneousEvs, true));
+                this._currentEventColors = simultaneousEvs.map(ev => this._getEventColor(ev));
                 this._updateLabelStyle();
             } else {
                 this._label.set_text('Done for today');
-                this._currentEventColor = null;
+                this._currentEventColors = null;
                 this._updateLabelStyle();
             }
         } else {
             if (upcoming.length === 0) {
                 this._label.set_text('Done for today');
-                this._currentEventColor = null;
+                this._currentEventColors = null;
                 this._updateLabelStyle();
                 return;
             }
 
-            this._currentEventColor = null;
+            this._currentEventColors = null;
             this._updateLabelStyle();
 
             const timeStrings = upcoming.map(ev => {
@@ -429,7 +486,7 @@ export default class NextEventExtension extends Extension {
             }
 
             const formattedTimes = Array.from(timeCounts.entries()).map(([t, count]) => {
-                return count > 1 ? `${t} (${count})` : t;
+                return count > 1 ? `${t} ${count} events` : t;
             });
 
             this._label.set_text(formattedTimes.join(' · '));
