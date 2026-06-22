@@ -114,6 +114,12 @@ export default class NextEventExtension extends Extension {
             y_align: Clutter.ActorAlign.CENTER,
         });
         
+        this._nowPill = new St.Label({
+            text: 'Now',
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        this._nowPill.hide();
+        
         this._label = new St.Label({
             text: currentText,
             y_align: Clutter.ActorAlign.CENTER,
@@ -121,6 +127,7 @@ export default class NextEventExtension extends Extension {
         this._updateLabelStyle();
 
         box.add_child(icon);
+        box.add_child(this._nowPill);
         box.add_child(this._label);
         this._indicator.add_child(box);
 
@@ -255,63 +262,74 @@ export default class NextEventExtension extends Extension {
      * Updates the CSS style of the panel indicator label based on user settings
      * (e.g. font size, background pill color).
      */
-    _updateLabelStyle() {
-        if (!this._label)
-            return;
+    _getPillStyle(colors, fontSize, showPillBackground, extraPadding = false) {
+        if (!colors || colors.length === 0 || !showPillBackground) {
+            return `font-size: ${fontSize}px; padding: 0 8px;`;
+        }
+        
+        let textColor = '#ffffff';
+        let hex = colors[0].replace('#', '');
+        if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
+        if (hex.length === 6) {
+            const r = parseInt(hex.substr(0, 2), 16);
+            const g = parseInt(hex.substr(2, 2), 16);
+            const b = parseInt(hex.substr(4, 2), 16);
+            const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
+            textColor = (yiq >= 128) ? '#000000' : '#ffffff';
+        }
+        
+        let bgStyle = '';
+        let shadowStyle = '';
+        const uniqueColors = [...new Set(colors)];
+        if (uniqueColors.length === 1) {
+            bgStyle = `background-color: ${uniqueColors[0]};`;
+        } else {
+            try {
+                const cacheDir = GLib.get_user_cache_dir() + '/gnome-next-event';
+                GLib.mkdir_with_parents(cacheDir, 0o700);
+                
+                const colorsId = 'v4-' + colors.map(c => c.replace('#', '')).join('-');
+                const svgFile = cacheDir + '/stripe-' + colorsId + '.svg';
+                
+                if (!GLib.file_test(svgFile, GLib.FileTest.EXISTS)) {
+                    const W = 40;
+                    let rects = '';
+                    const stripeWidth = W / colors.length;
+                    for (let i = 0; i < colors.length; i++) {
+                        rects += `<rect x="${i * stripeWidth}" width="${stripeWidth}" height="${W}" fill="${colors[i]}" />`;
+                    }
+                    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="40" viewBox="0 0 200 40"><defs><pattern id="s" patternUnits="userSpaceOnUse" width="${W}" height="${W}" patternTransform="rotate(45)"><rect width="${W}" height="${W}" fill="${colors[0]}" />${rects}</pattern></defs><rect width="200" height="40" fill="url(#s)" /></svg>`;
+                    
+                    GLib.file_set_contents(svgFile, new TextEncoder().encode(svg));
+                }
+                bgStyle = `background-image: url("file://${svgFile}"); background-size: cover; border: 1px solid rgba(0,0,0,0.1);`;
+                
+                const outline = textColor === '#000000' ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.9)';
+                shadowStyle = `text-shadow: 0px 0px 3px ${outline};`;
+            } catch (e) {
+                console.error('Failed to generate SVG stripe:', e);
+            }
+        }
+        
+        const marginLeft = extraPadding ? 'margin-left: 4px; margin-right: 4px;' : 'margin-left: 4px;';
+        return `font-size: ${fontSize}px; padding: 2px 12px; ${bgStyle} color: ${textColor}; ${shadowStyle} border-radius: 99px; ${marginLeft}`;
+    }
 
+    _updateLabelStyle() {
         const fontSize = Math.max(10, this._settings?.get_int('font-size') ?? DEFAULT_FONT_SIZE);
         const showPillBackground = this._settings?.get_boolean('show-pill-background') ?? true;
         
-        let colors = this._currentEventColors || [];
+        if (this._label) {
+            this._label.set_style(this._getPillStyle(this._currentEventColors, fontSize, showPillBackground, false));
+        }
         
-        if (colors.length > 0 && showPillBackground) {
-            let textColor = '#ffffff';
-            let hex = colors[0].replace('#', '');
-            if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
-            if (hex.length === 6) {
-                const r = parseInt(hex.substr(0, 2), 16);
-                const g = parseInt(hex.substr(2, 2), 16);
-                const b = parseInt(hex.substr(4, 2), 16);
-                const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
-                textColor = (yiq >= 128) ? '#000000' : '#ffffff';
-            }
-            
-            let bgStyle = '';
-            let shadowStyle = '';
-            const uniqueColors = [...new Set(colors)];
-            if (uniqueColors.length === 1) {
-                bgStyle = `background-color: ${uniqueColors[0]};`;
+        if (this._nowPill) {
+            if (this._nowEventColors && this._nowEventColors.length > 0) {
+                this._nowPill.set_style(this._getPillStyle(this._nowEventColors, fontSize, showPillBackground, true) + ' font-weight: bold;');
+                this._nowPill.show();
             } else {
-                try {
-                    const cacheDir = GLib.get_user_cache_dir() + '/gnome-next-event';
-                    GLib.mkdir_with_parents(cacheDir, 0o700);
-                    
-                    const colorsId = 'v3-' + colors.map(c => c.replace('#', '')).join('-');
-                    const svgFile = cacheDir + '/stripe-' + colorsId + '.svg';
-                    
-                    if (!GLib.file_test(svgFile, GLib.FileTest.EXISTS)) {
-                        const W = 40;
-                        let rects = '';
-                        const stripeWidth = W / colors.length;
-                        for (let i = 0; i < colors.length; i++) {
-                            rects += `<rect x="${i * stripeWidth}" width="${stripeWidth}" height="${W}" fill="${colors[i]}" />`;
-                        }
-                        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="40" viewBox="0 0 200 40"><defs><pattern id="s" patternUnits="userSpaceOnUse" width="${W}" height="${W}" patternTransform="rotate(45)"><rect width="${W}" height="${W}" fill="${colors[0]}" />${rects}</pattern></defs><rect width="200" height="40" fill="url(#s)" /></svg>`;
-                        
-                        GLib.file_set_contents(svgFile, new TextEncoder().encode(svg));
-                    }
-                    bgStyle = `background-image: url("file://${svgFile}"); background-size: cover; border: 1px solid rgba(0,0,0,0.1);`;
-                    
-                    const outline = textColor === '#000000' ? '#FFFFFF' : '#000000';
-                    shadowStyle = `text-shadow: 0px 0px 2px ${outline};`;
-                } catch (e) {
-                    console.error('Failed to generate SVG stripe:', e);
-                }
+                this._nowPill.hide();
             }
-
-            this._label.set_style(`font-size: ${fontSize}px; padding: 2px 12px; ${bgStyle} color: ${textColor}; ${shadowStyle} border-radius: 99px; margin-left: 4px;`);
-        } else {
-            this._label.set_style(`font-size: ${fontSize}px; padding: 0 8px;`);
         }
     }
 
@@ -402,6 +420,7 @@ export default class NextEventExtension extends Extension {
         if (displayMode === 'icon-only') {
             this._label.set_text('');
             this._label.hide();
+            if (this._nowPill) this._nowPill.hide();
             return;
         } else {
             this._label.show();
@@ -409,7 +428,24 @@ export default class NextEventExtension extends Extension {
 
         if (sortedTodayEvents.length === 0) {
             this._label.set_text('No events today');
+            if (this._nowPill) this._nowPill.hide();
             return;
+        }
+        
+        const ongoingEvs = activeTodayEvents.filter(ev => ev.date <= now && ev.end >= now);
+        let mainLabelShowsNow = false;
+        
+        if (displayMode === 'now-next-event') {
+            const upcomingEvs = activeTodayEvents.filter(ev => ev.date > now || (ev.date <= now && ev.end > now));
+            if (upcomingEvs.length > 0) {
+                mainLabelShowsNow = (upcomingEvs[0].date <= now && upcomingEvs[0].end >= now);
+            }
+        }
+        
+        if (ongoingEvs.length > 0 && !mainLabelShowsNow) {
+            this._nowEventColors = ongoingEvs.map(ev => this._getEventColor(ev));
+        } else {
+            this._nowEventColors = null;
         }
 
         const getEventText = (evs, showNowIfOngoing) => {
