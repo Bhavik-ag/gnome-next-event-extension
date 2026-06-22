@@ -416,6 +416,7 @@ export default class NextEventExtension extends Extension {
         this._populateMenu();
 
         const displayMode = this._getDisplayMode();
+        const ongoingEvs = activeTodayEvents.filter(ev => ev.date <= now && ev.end >= now);
 
         if (displayMode === 'icon-only') {
             this._label.set_text('');
@@ -432,7 +433,6 @@ export default class NextEventExtension extends Extension {
             return;
         }
         
-        const ongoingEvs = activeTodayEvents.filter(ev => ev.date <= now && ev.end >= now);
         let mainLabelShowsNow = false;
         
         if (displayMode === 'now-next-event') {
@@ -475,7 +475,7 @@ export default class NextEventExtension extends Extension {
                 this._currentEventColors = simultaneousEvs.map(ev => this._getEventColor(ev));
                 this._updateLabelStyle();
             } else {
-                this._label.set_text('Done for today');
+                this._label.set_text(ongoingEvs.length > 0 ? '' : 'Done for today');
                 this._currentEventColors = null;
                 this._updateLabelStyle();
             }
@@ -496,13 +496,13 @@ export default class NextEventExtension extends Extension {
                 this._currentEventColors = simultaneousEvs.map(ev => this._getEventColor(ev));
                 this._updateLabelStyle();
             } else {
-                this._label.set_text('Done for today');
+                this._label.set_text(ongoingEvs.length > 0 ? '' : 'Done for today');
                 this._currentEventColors = null;
                 this._updateLabelStyle();
             }
         } else {
             if (upcoming.length === 0) {
-                this._label.set_text('Done for today');
+                this._label.set_text(ongoingEvs.length > 0 ? '' : 'Done for today');
                 this._currentEventColors = null;
                 this._updateLabelStyle();
                 return;
