@@ -32,6 +32,16 @@
       <default>true</default>
     </key>
 
+    <key name="flash-minutes-before" type="i">
+      <default>5</default>
+      <range min="0" max="60"/>
+    </key>
+
+    <key name="flash-minutes-after" type="i">
+      <default>5</default>
+      <range min="0" max="60"/>
+    </key>
+
     <key name="skipped-events" type="as">
       <default>[]</default>
     </key>

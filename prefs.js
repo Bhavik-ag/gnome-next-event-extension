@@ -98,5 +98,31 @@ export default class NextEventPreferences extends ExtensionPreferences {
         });
         settings.bind('show-pill-background', showPillBackgroundRow, 'active', Gio.SettingsBindFlags.DEFAULT);
         group.add(showPillBackgroundRow);
+
+        const flashBeforeRow = new Adw.SpinRow({
+            title: _('Flash before meeting (minutes)'),
+            subtitle: _('0 to disable'),
+            adjustment: new Gtk.Adjustment({
+                lower: 0,
+                upper: 60,
+                step_increment: 1,
+                page_increment: 5,
+            }),
+        });
+        settings.bind('flash-minutes-before', flashBeforeRow, 'value', Gio.SettingsBindFlags.DEFAULT);
+        group.add(flashBeforeRow);
+
+        const flashAfterRow = new Adw.SpinRow({
+            title: _('Flash after meeting starts (minutes)'),
+            subtitle: _('0 to disable'),
+            adjustment: new Gtk.Adjustment({
+                lower: 0,
+                upper: 60,
+                step_increment: 1,
+                page_increment: 5,
+            }),
+        });
+        settings.bind('flash-minutes-after', flashAfterRow, 'value', Gio.SettingsBindFlags.DEFAULT);
+        group.add(flashAfterRow);
     }
 }

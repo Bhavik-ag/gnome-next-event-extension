@@ -134,7 +134,11 @@ export default class NextEventExtension extends Extension {
         Main.panel.addToStatusArea('next-event', this._indicator, 0, this._getPanelPosition());
         
         this._indicator.menu.connect('open-state-changed', (menu, isOpen) => {
-            if (!isOpen) {
+            if (isOpen) {
+                this._lastAcknowledgedTime = new Date().getTime();
+                this._stopFlashing(this._label);
+                this._stopFlashing(this._nowPill);
+            } else {
                 this._selectedDate = new Date();
                 this._refresh();
             }
@@ -176,19 +180,11 @@ export default class NextEventExtension extends Extension {
         this._settingsSignals.push(
             this._settings.connect('changed::display-mode', () => {
                 this._refresh();
-            })
-        );
-
-        this._settingsSignals.push(
-            this._settings.connect('changed::show-mini-timeline', () => {
-                this._refresh();
-            })
-        );
-
-        this._settingsSignals.push(
-            this._settings.connect('changed::show-pill-background', () => {
-                this._updateLabelStyle();
-            })
+            }),
+            this._settings.connect('changed::show-mini-timeline', () => this._refresh()),
+            this._settings.connect('changed::show-pill-background', () => this._updateLabelStyle()),
+            this._settings.connect('changed::flash-minutes-before', () => this._refresh()),
+            this._settings.connect('changed::flash-minutes-after', () => this._refresh())
         );
     }
 
@@ -390,8 +386,7 @@ export default class NextEventExtension extends Extension {
      * and update the panel label.
      */
     _refresh() {
-        if (!this._label || !this._eventSource || !this._indicator)
-            return;
+        if (!this._eventSource) return;
 
         this._pruneSkippedEvents();
 
@@ -527,6 +522,82 @@ export default class NextEventExtension extends Extension {
 
             this._label.set_text(formattedTimes.join(' · '));
         }
+
+        const nowMs = now.getTime();
+        const flashBeforeMs = (this._settings?.get_int('flash-minutes-before') ?? 5) * 60000;
+        const flashAfterMs = (this._settings?.get_int('flash-minutes-after') ?? 5) * 60000;
+
+        let shouldFlashLabel = false;
+        let shouldFlashNowPill = false;
+
+        const ackTime = this._lastAcknowledgedTime || 0;
+
+        for (const ev of activeTodayEvents) {
+            const evStartMs = ev.date.getTime();
+            
+            const enterBeforeWindow = evStartMs - flashBeforeMs;
+            if (flashBeforeMs > 0 && evStartMs > nowMs && nowMs >= enterBeforeWindow) {
+                if (ackTime < enterBeforeWindow) {
+                    shouldFlashLabel = true;
+                }
+            }
+            
+            if (flashAfterMs > 0 && nowMs >= evStartMs && nowMs - evStartMs <= flashAfterMs) {
+                if (ackTime < evStartMs) {
+                    shouldFlashNowPill = true;
+                }
+            }
+        }
+
+        if (shouldFlashLabel) {
+            this._startFlashing(this._label);
+        } else {
+            this._stopFlashing(this._label);
+        }
+
+        if (shouldFlashNowPill && this._nowPill.visible) {
+            this._startFlashing(this._nowPill);
+        } else {
+            this._stopFlashing(this._nowPill);
+        }
+    }
+
+    _startFlashing(actor) {
+        if (!actor || actor._isFlashing) return;
+        actor._isFlashing = true;
+        
+        const animate = () => {
+            if (!actor._isFlashing) {
+                actor.opacity = 255;
+                actor.remove_all_transitions();
+                return;
+            }
+            actor.ease({
+                opacity: 64,
+                duration: 1000,
+                mode: Clutter.AnimationMode.EASE_IN_OUT_QUAD,
+                onComplete: () => {
+                    if (!actor._isFlashing) {
+                        actor.opacity = 255;
+                        return;
+                    }
+                    actor.ease({
+                        opacity: 255,
+                        duration: 1000,
+                        mode: Clutter.AnimationMode.EASE_IN_OUT_QUAD,
+                        onComplete: animate
+                    });
+                }
+            });
+        };
+        animate();
+    }
+
+    _stopFlashing(actor) {
+        if (!actor || !actor._isFlashing) return;
+        actor._isFlashing = false;
+        actor.remove_all_transitions();
+        actor.opacity = 255;
     }
 
     /**
