@@ -814,6 +814,32 @@ export default class NextEventExtension extends Extension {
             return;
         }
 
+        const eventsScrollView = new St.ScrollView({
+            style_class: 'vfade',
+            hscrollbar_policy: St.PolicyType.NEVER,
+            vscrollbar_policy: St.PolicyType.AUTOMATIC,
+            x_expand: true,
+            y_expand: true,
+        });
+
+        const eventsBox = new St.BoxLayout({
+            vertical: true,
+            x_expand: true,
+        });
+        eventsScrollView.add_child(eventsBox);
+
+        const eventsMenuItem = new PopupMenu.PopupBaseMenuItem({
+            reactive: false,
+            can_focus: false,
+            hover: false
+        });
+        eventsMenuItem.style = 'padding: 0; margin: 0;';
+        eventsMenuItem.add_child(eventsScrollView);
+        this._indicator.menu.addMenuItem(eventsMenuItem);
+        
+        this._eventsScrollView = eventsScrollView;
+        this._firstUpcomingItem = null;
+
         for (const ev of sortedEvents) {
             const now = new Date();
             const isNow = ev.date <= now && ev.end >= now;
@@ -829,6 +855,10 @@ export default class NextEventExtension extends Extension {
                 item.opacity = 127;
             } else if (isSkipped) {
                 item.opacity = 127;
+            }
+
+            if (!this._firstUpcomingItem && !isPast && !isSkipped) {
+                this._firstUpcomingItem = item;
             }
 
             let eventColor = this._getEventColor(ev);
@@ -1030,8 +1060,9 @@ export default class NextEventExtension extends Extension {
 
             item.connect('activate', () => {
                 Util.spawn(['sh', '-c', 'gtk-launch org.gnome.Calendar.desktop || flatpak run org.gnome.Calendar || gnome-calendar']);
+                this._indicator.menu.close();
             });
-            this._indicator.menu.addMenuItem(item);
+            eventsBox.add_child(item);
         }
     }
 
