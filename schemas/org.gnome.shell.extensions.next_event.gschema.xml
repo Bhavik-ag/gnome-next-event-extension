@@ -20,8 +20,30 @@
       <range min="10" max="900"/>
     </key>
 
-    <key name="show-ongoing-indicator" type="b">
+    <key name="display-mode" type="s">
+      <default>'next-event'</default>
+    </key>
+
+    <key name="show-mini-timeline" type="b">
       <default>true</default>
+    </key>
+
+    <key name="show-pill-background" type="b">
+      <default>true</default>
+    </key>
+
+    <key name="flash-minutes-before" type="i">
+      <default>5</default>
+      <range min="0" max="60"/>
+    </key>
+
+    <key name="flash-minutes-after" type="i">
+      <default>5</default>
+      <range min="0" max="60"/>
+    </key>
+
+    <key name="skipped-events" type="as">
+      <default>[]</default>
     </key>
   </schema>
 </schemalist>
