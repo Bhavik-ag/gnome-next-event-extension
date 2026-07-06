@@ -925,7 +925,7 @@ export default class NextEventExtension extends Extension {
                 if (isSkipped) {
                     this._skippedEventIds.delete(eventKey);
                 } else {
-                    const expires = new Date(ev.date).setHours(23, 59, 59, 999);
+                    const expires = new Date(ev.end).setHours(23, 59, 59, 999);
                     this._skippedEventIds.set(eventKey, expires);
                 }
                 this._saveSkippedEvents();
