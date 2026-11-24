@@ -28,6 +28,7 @@ Available settings:
 - Max title length
 - Refresh interval (seconds)
 - Show/hide `Now` indicator
+- Hide all-day events
 
 ## Uninstall
 
