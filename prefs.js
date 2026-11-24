@@ -77,5 +77,12 @@ export default class NextEventPreferences extends ExtensionPreferences {
         });
         settings.bind('show-ongoing-indicator', nowIndicatorRow, 'active', Gio.SettingsBindFlags.DEFAULT);
         group.add(nowIndicatorRow);
+
+        const hideAllDayRow = new Adw.SwitchRow({
+            title: _('Hide all-day events'),
+            subtitle: _('Skip events that last the whole day, such as out-of-office or location markers'),
+        });
+        settings.bind('hide-all-day-events', hideAllDayRow, 'active', Gio.SettingsBindFlags.DEFAULT);
+        group.add(hideAllDayRow);
     }
 }

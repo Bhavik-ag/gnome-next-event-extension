@@ -23,5 +23,9 @@
     <key name="show-ongoing-indicator" type="b">
       <default>true</default>
     </key>
+
+    <key name="hide-all-day-events" type="b">
+      <default>false</default>
+    </key>
   </schema>
 </schemalist>

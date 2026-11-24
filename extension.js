@@ -131,6 +131,12 @@ export default class NextEventExtension extends Extension {
                 this._refresh();
             })
         );
+
+        this._settingsSignals.push(
+            this._settings.connect('changed::hide-all-day-events', () => {
+                this._refresh();
+            })
+        );
     }
 
     _startTimer() {
@@ -184,6 +190,19 @@ export default class NextEventExtension extends Extension {
         return this._settings?.get_boolean('show-ongoing-indicator') ?? true;
     }
 
+    _shouldHideAllDayEvents() {
+        return this._settings?.get_boolean('hide-all-day-events') ?? false;
+    }
+
+    /**
+     * GNOME Shell's CalendarEvent carries no all-day flag: like the shell's own
+     * date menu, treat an event as all-day when it covers the whole day
+     * (starts at or before midnight and ends at or after the next midnight).
+     */
+    _isAllDayEvent(ev, dayStart, nextDayStart) {
+        return ev.date <= dayStart && ev.end >= nextDayStart;
+    }
+
     _updateLabelStyle() {
         if (!this._label)
             return;
@@ -231,14 +250,19 @@ export default class NextEventExtension extends Extension {
         const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
         const todayEnd   = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
 
-        const events = this._eventSource.getEvents(todayStart, todayEnd);
-        const upcoming = (events || [])
+        const nextDayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0);
+
+        let events = this._eventSource.getEvents(todayStart, todayEnd) || [];
+        if (this._shouldHideAllDayEvents())
+            events = events.filter(ev => !this._isAllDayEvent(ev, todayStart, nextDayStart));
+
+        const upcoming = events
             .filter(ev => ev.date >= now || ev.end >= now)
             .sort((a, b) => a.date - b.date);
         this._upcomingEvents = upcoming;
         this._populateMenu();
 
-        if (!events || events.length === 0) {
+        if (events.length === 0) {
             this._label.set_text('No events today');
             return;
         }
